@@ -11,7 +11,12 @@ local cfg = {
   jitter = 0.03,          -- +/- jitter for human-like timing
   autoLoop = true,        -- run continuously
   loopDelay = 120,        -- seconds to wait between runs (2 minutes)
-  hotkeyStart = { {'alt','cmd'}, 'g' },
+  sellEveryRows = 2,      -- sell after N rows (0 to disable)
+  entryAtTop = true,      -- true: Shift+2 drops at top; false: bottom
+  gardenFacingDown = true,-- true: garden UI faces down (default), false: faces up
+  hotkeyStart = { {'ctrl','alt','cmd'}, 'g' },
+  hotkeyStartDown = { {'ctrl'}, 'd' }, -- start with facing down
+  hotkeyStartUp = { {'ctrl'}, 'u' },   -- start with facing up
   hotkeyAbort = { {'ctrl'}, 'escape' },
 }
 
@@ -68,8 +73,8 @@ local function scheduleNext()
     actionQueue = {}
     if currentTimer then currentTimer:stop() end
     currentTimer = nil
-    return
-  end
+    return          
+  end      
   local nextAction = table.remove(actionQueue, 1)
   if not nextAction then
     -- done
@@ -118,16 +123,17 @@ local function enqueueHarvestTile()
   end
 end
 
-local function enqueueTraverse10x10(startDir, sellEveryRows, afterRowsCallback)
+local function enqueueTraverse10x10(startDir, sellEveryRows, afterRowsCallback, vStep)
   local dir = startDir or 'right'
   local sellEvery = sellEveryRows or 0
+  local vstep = vStep or 'down'
   for row = 1, 10 do
     for col = 1, 10 do
       enqueueHarvestTile()
       if col < 10 then enqueueMove(dir, 1) end
     end
     if row < 10 then
-      enqueueMove('down', 1)
+      enqueueMove(vstep, 1)
       dir = (dir == 'right') and 'left' or 'right'
     end
     if sellEvery > 0 and (row % sellEvery == 0) and row < 10 then
@@ -149,7 +155,7 @@ function enqueueSellAtShop()
   enqueue(function() stroke({}, 'space') end, 0.05)
 end
 
-function runAll()
+function runAll(facingDown)
   if running then return end
   running = true
   math.randomseed(os.time())
@@ -160,18 +166,30 @@ function runAll()
 
   enqueueFocusDiscord()
 
+  -- Determine vertical step based on entry position and facing
+  local gardenFacesDown = cfg.gardenFacingDown
+  if type(facingDown) == 'boolean' then
+    gardenFacesDown = facingDown
+  end
+  local vStep
+  if gardenFacesDown then
+    vStep = cfg.entryAtTop and 'down' or 'up'
+  else
+    vStep = cfg.entryAtTop and 'up' or 'down'
+  end
+
   -- Left plot: start at upper-right corner, go leftwards first
   enqueueEnterGarden()
-  enqueueMove('down', 1)
+  enqueueMove(vStep, 1)
   enqueueMove('left', 1)
   -- We are on upper-right corner of left plot, so first row direction is left
-  enqueueTraverse10x10('left', 2, function(resumeRow, dir)
+  enqueueTraverse10x10('left', cfg.sellEveryRows, function(resumeRow, dir)
     -- After selling, re-enter garden and navigate back to next row start
     enqueueEnterGarden()
-    enqueueMove('down', 1)
+    enqueueMove(vStep, 1)
     enqueueMove('left', 1)
     -- Move down resumeRow rows already completed to the next row start
-    enqueueMove('down', resumeRow)
+    enqueueMove(vStep, resumeRow)
     -- We are anchored on the right edge; for next row direction:
     -- if dir == 'left', start at rightmost (already here). If dir == 'right', move to leftmost.
     if dir == 'right' then
@@ -184,14 +202,14 @@ function runAll()
 
   -- Right plot (re-center via garden entry)
   enqueueEnterGarden()
-  enqueueMove('down', 1)
+  enqueueMove(vStep, 1)
   enqueueMove('right', 1)
   -- We are on upper-left corner of right plot, so first row direction is right
-  enqueueTraverse10x10('right', 2, function(resumeRow, dir)
+  enqueueTraverse10x10('right', cfg.sellEveryRows, function(resumeRow, dir)
     enqueueEnterGarden()
-    enqueueMove('down', 1)
+    enqueueMove(vStep, 1)
     enqueueMove('right', 1)
-    enqueueMove('down', resumeRow)
+    enqueueMove(vStep, resumeRow)
     -- We are anchored on the left edge; for next row direction:
     -- if dir == 'right', start at leftmost (already here). If dir == 'left', move to rightmost.
     if dir == 'left' then
@@ -206,13 +224,13 @@ function runAll()
 end
 
 hs.hotkey.bind(cfg.hotkeyAbort[1], cfg.hotkeyAbort[2], function()
-  if running then
-    running = false
-    if currentTimer then currentTimer:stop() end
-    actionQueue = {}
-    updateMenu()
-    hs.alert.show("Farm macro aborted")
-  end
+  -- Abort regardless of current running state (also cancels auto-loop timer)
+  if currentTimer then currentTimer:stop() end
+  currentTimer = nil
+  actionQueue = {}
+  running = false
+  updateMenu()
+  hs.alert.show("Farm macro aborted")
 end)
 
 hs.hotkey.bind(cfg.hotkeyStart[1], cfg.hotkeyStart[2], function()
@@ -221,6 +239,25 @@ hs.hotkey.bind(cfg.hotkeyStart[1], cfg.hotkeyStart[2], function()
   else
     hs.alert.show("Starting farm macro")
     runAll()
+  end
+end)
+
+-- Start macros with explicit facing direction
+hs.hotkey.bind(cfg.hotkeyStartDown[1], cfg.hotkeyStartDown[2], function()
+  if running then
+    hs.alert.show("Already running")
+  else
+    hs.alert.show("Starting farm macro (facing down)")
+    runAll(true)
+  end
+end)
+
+hs.hotkey.bind(cfg.hotkeyStartUp[1], cfg.hotkeyStartUp[2], function()
+  if running then
+    hs.alert.show("Already running")
+  else
+    hs.alert.show("Starting farm macro (facing up)")
+    runAll(false)
   end
 end)
 

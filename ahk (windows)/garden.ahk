@@ -1,25 +1,34 @@
 ; AutoHotkey v2 - Discord Garden Macro
+; 
+; This macro handles both upward and downward facing gardens.
+; Set gardenFacingDown := true for gardens that face down (default)
+; Set gardenFacingDown := false for gardens that face up
 
 ; ---------- Config ----------
 useArrows := true
 harvestRepeatsMin := 4
 harvestRepeatsMax := 6
-tGarden := 900           ; ms after Shift+2
-tShop := 700             ; ms after Shift+3
-tAction := 120           ; ms per Space
-tMove := 120             ; ms per tile move
-jitter := 30             ; +/- ms jitter
+tGarden := 600           ; ms after Shift+2
+tShop := 600             ; ms after Shift+3
+tAction := 60           ; ms per Space
+tMove := 80             ; ms per tile move
+jitter := 10             ; +/- ms jitter
 sellEveryRows := 2
 entryAtTop := true       ; true: Shift+2 drops at top; false: bottom
+gardenFacingDown := true ; true: garden faces down (default), false: garden faces up
 autoLoop := true
-loopDelayMs := 240000    ; 4 minutes
-startHotkey := "!#g"     ; Alt+Win+G
+loopDelayMs := 15000    ; 15 sec
+startHotkey := "^!g"     ; Ctrl+Alt+G
 abortHotkey := "^Esc"    ; Ctrl+Esc
+startHotkeyDown := "^!d"  ; Ctrl+Alt+D (start run for downward-facing garden)
+startHotkeyUp := "^!u"    ; Ctrl+Alt+U (start run for upward-facing garden)
 
 ; ---------- State ----------
 global running := false
 global q := []
 global prevHwnd := 0
+global currentTimerCb := 0  ; holds the currently scheduled one-shot timer callback for cancellation
+global lastFacingDown := gardenFacingDown
 
 movement := useArrows
   ? Map("left","{Left}","right","{Right}","up","{Up}","down","{Down}")
@@ -31,17 +40,36 @@ RandDelay(ms) {
   return ms + Random(-jitter, jitter)
 }
 
+SleepCancellable(ms) {
+  global running
+  remaining := RandDelay(ms)
+  chunk := 20
+  while (remaining > 0 && running) {
+    thisSleep := remaining < chunk ? remaining : chunk
+    Sleep thisSleep
+    remaining -= thisSleep
+  }
+}
+
 Enqueue(fn, delayMs) {
   global q
   q.Push(Map("f", fn, "d", delayMs))
 }
 
 SetOneShotTimer(cb, delayMs) {
+  global currentTimerCb
+  if (currentTimerCb) {
+    ; cancel any previously scheduled one-shot timer
+    SetTimer(currentTimerCb, 0)
+    currentTimerCb := 0
+  }
   if (delayMs <= 0) {
     cb.Call()
-  } else {
-    SetTimer(() => cb.Call(), -delayMs)
+    return
   }
+  wrapper := () => cb.Call()
+  currentTimerCb := wrapper
+  SetTimer(wrapper, -delayMs)
 }
 
 ProcessNext() {
@@ -54,15 +82,14 @@ ProcessNext() {
     running := false
     TrayTip("Farm macro", autoLoop ? "Waiting before next run..." : "Finished")
     if (autoLoop) {
-      RestorePrevApp()
-      SetOneShotTimer(Func("RunAll"), loopDelayMs)
+      SetOneShotTimer(() => RunAll(), loopDelayMs)
     }
     return
   }
   step := q.RemoveAt(1)
   SetOneShotTimer(() => (
     running ? step["f"].Call() : 0,
-    ProcessNext()
+    running ? ProcessNext() : 0
   ), RandDelay(step["d"]))
 }
 
@@ -72,7 +99,7 @@ StartQueue() {
 
 ; ---------- Send helpers ----------
 Press(mods, key) {
-  Send(mods key)
+  Send(mods . key)
 }
 
 Stroke(key) {
@@ -80,56 +107,58 @@ Stroke(key) {
 }
 
 Move(dir, times := 1, perMove := 0) {
-  global movement, tMove
+  global movement, tMove, running
   Loop times {
+    if (!running) {
+      return
+    }
     Stroke(movement[dir])
-    Sleep RandDelay(perMove || tMove)
+    if (!running) {
+      return
+    }
+    SleepCancellable(perMove || tMove)
   }
 }
 
 HarvestTile() {
-  global harvestRepeatsMin, harvestRepeatsMax, tAction
+  global harvestRepeatsMin, harvestRepeatsMax, tAction, running
   reps := Random(harvestRepeatsMin, harvestRepeatsMax)
   Loop reps {
+    if (!running) {
+      return
+    }
     Stroke(" ")
-    Sleep RandDelay(tAction)
+    if (!running) {
+      return
+    }
+    SleepCancellable(tAction)
   }
 }
 
-; ---------- App focus ----------
-FocusDiscord() {
-  WinActivate "ahk_exe Discord.exe"
-  Sleep 250
-}
-
-SavePrevApp() {
-  global prevHwnd
-  prevHwnd := WinExist("A")
-}
-
-RestorePrevApp() {
-  global prevHwnd
-  if (prevHwnd) {
-    WinActivate "ahk_id " prevHwnd
-  }
-}
+; ---------- App focus (not used; assume Discord is focused) ----------
 
 EnterGarden() {
   Press("+", "2")
-  Sleep RandDelay(tGarden)
+  SleepCancellable(tGarden)
 }
 
 SellAtShop() {
   Press("+", "3")
-  Sleep RandDelay(tShop)
+  SleepCancellable(tShop)
   Stroke(" ")
 }
 
 ; ---------- Traversal ----------
 Traverse10x10(startDir, sellEveryRows := 0, afterRowsCb := 0, vStep := "down") {
+  global running
   dir := startDir
-  Loop 10 row {
-    Loop 10 col {
+  Loop 10 {
+    row := A_Index
+    Loop 10 {
+      col := A_Index
+      if (!running) {
+        return
+      }
       HarvestTile()
       if (col < 10) {
         Move(dir, 1)
@@ -153,7 +182,7 @@ MoveDyn(dir, times := 1) {
 }
 
 TraverseLeftPlot(vStep) {
-  Traverse10x10("left", sellEveryRows, Func("ResumeLeft").Bind(vStep), vStep)
+  Traverse10x10("left", sellEveryRows, (row, nextDir) => ResumeLeft(vStep, row, nextDir), vStep)
 }
 
 ResumeLeft(vStep, resumeRow, nextDir) {
@@ -167,7 +196,7 @@ ResumeLeft(vStep, resumeRow, nextDir) {
 }
 
 TraverseRightPlot(vStep) {
-  Traverse10x10("right", sellEveryRows, Func("ResumeRight").Bind(vStep), vStep)
+  Traverse10x10("right", sellEveryRows, (row, nextDir) => ResumeRight(vStep, row, nextDir), vStep)
 }
 
 ResumeRight(vStep, resumeRow, nextDir) {
@@ -181,49 +210,67 @@ ResumeRight(vStep, resumeRow, nextDir) {
 }
 
 ; ---------- Run logic ----------
-RunAll() {
-  global running, q, entryAtTop
+RunAll(facingDown := "") {
+  global running, q, entryAtTop, gardenFacingDown, lastFacingDown
   if (running) {
     TrayTip("Farm macro", "Already running")
     return
   }
   running := true
   q := []
-  SavePrevApp()
+  
+  ; Determine facing for this run (argument overrides current setting)
+  if (IsSet(facingDown) && facingDown != "") {
+    gardenFacingDown := facingDown
+  }
+  lastFacingDown := gardenFacingDown
 
-  vStep := entryAtTop ? "down" : "up"
-
-  Enqueue(Func("FocusDiscord"), 250)
+  ; Determine vertical step based on entry position and facing
+  if (gardenFacingDown) {
+    vStep := entryAtTop ? "down" : "up"
+  } else {
+    vStep := entryAtTop ? "up" : "down"
+  }
+  ; Assuming Discord is already focused
 
   ; Left plot
-  Enqueue(Func("EnterGarden"), 0)
-  Enqueue(Func("MoveDyn").Bind(vStep, 1), 0)
-  Enqueue(Func("Move").Bind("left", 1), 0)
-  Enqueue(Func("TraverseLeftPlot").Bind(vStep), 0)
+  Enqueue(() => EnterGarden(), 0)
+  Enqueue(() => MoveDyn(vStep, 1), 0)
+  Enqueue(() => Move("left", 1), 0)
+  Enqueue(() => TraverseLeftPlot(vStep), 0)
 
   ; Sell before switching plots
-  Enqueue(Func("SellAtShop"), 0)
+  Enqueue(() => SellAtShop(), 0)
 
   ; Right plot
-  Enqueue(Func("EnterGarden"), 0)
-  Enqueue(Func("MoveDyn").Bind(vStep, 1), 0)
-  Enqueue(Func("Move").Bind("right", 1), 0)
-  Enqueue(Func("TraverseRightPlot").Bind(vStep), 0)
+  Enqueue(() => EnterGarden(), 0)
+  Enqueue(() => MoveDyn(vStep, 1), 0)
+  Enqueue(() => Move("right", 1), 0)
+  Enqueue(() => TraverseRightPlot(vStep), 0)
 
   ; Final sell
-  Enqueue(Func("SellAtShop"), 0)
+  Enqueue(() => SellAtShop(), 0)
 
   StartQueue()
 }
 
+AbortMacro(*) {
+  global running, q, currentTimerCb
+  running := false
+  q := []
+  if (currentTimerCb) {
+    SetTimer(currentTimerCb, 0)
+    currentTimerCb := 0
+  }
+  TrayTip("Farm macro", "Aborted")
+}
+
 ; ---------- Hotkeys ----------
 Hotkey(startHotkey, (*) => RunAll())
-Hotkey(abortHotkey, (*) => (
-  running := false,
-  q := [],
-  TrayTip("Farm macro", "Aborted")
-))
+Hotkey(startHotkeyDown, (*) => RunAll(true))
+Hotkey(startHotkeyUp, (*) => RunAll(false))
+Hotkey(abortHotkey, AbortMacro)
 
-TrayTip("Farm macro", "Loaded. " (entryAtTop ? "Entry at TOP" : "Entry at BOTTOM"))
-
-
+TrayTip("Farm macro", "Loaded. " . (entryAtTop ? "Entry at TOP" : "Entry at BOTTOM") . 
+  ". Facing " . (gardenFacingDown ? "DOWN" : "UP") .
+  ". Hotkeys: Start(^!g), Down(^!d), Up(^!u), Abort(^Esc)")

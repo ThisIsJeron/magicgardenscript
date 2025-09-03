@@ -4,13 +4,13 @@ local cfg = {
   useArrows = true,       -- true: Arrow keys; false: WASD
   harvestRepeatsMin = 4,  -- min Space presses per tile
   harvestRepeatsMax = 6,  -- max Space presses per tile
-  tGarden = 0.90,         -- delay after Shift+2
-  tShop = 0.70,           -- delay after Shift+3
-  tAction = 0.12,         -- per Space press (slower)
-  tMove = 0.12,           -- per tile move (slower)
-  jitter = 0.03,          -- +/- jitter for human-like timing
+  tGarden = 0.30,         -- delay after Shift+2
+  tShop = 0.23,           -- delay after Shift+3
+  tAction = 0.04,         -- per Space press (slower)
+  tMove = 0.04,           -- per tile move (slower)
+  jitter = 0.01,          -- +/- jitter for human-like timing
   autoLoop = true,        -- run continuously
-  loopDelay = 120,        -- seconds to wait between runs (2 minutes)
+  loopDelay = 15,        -- seconds to wait between runs (2 minutes)
   sellEveryRows = 2,      -- sell after N rows (0 to disable)
   entryAtTop = true,      -- true: Shift+2 drops at top; false: bottom
   gardenFacingDown = true,-- true: garden UI faces down (default), false: faces up
@@ -19,6 +19,8 @@ local cfg = {
   hotkeyStartUp = { {'ctrl'}, 'u' },   -- start with facing up
   hotkeyAbort = { {'ctrl'}, 'escape' },
 }
+
+local lastFacingDown = cfg.gardenFacingDown
 
 local running = false
 local farmMenu = hs.menubar.new()
@@ -90,7 +92,7 @@ local function scheduleNext()
           previousApp:activate()
         end
       end)
-      currentTimer = hs.timer.doAfter(cfg.loopDelay, function() runAll() end)
+      currentTimer = hs.timer.doAfter(cfg.loopDelay, function() runAll(lastFacingDown) end)
     else
       hs.alert.show("Farm macro finished")
     end
@@ -167,10 +169,10 @@ function runAll(facingDown)
   enqueueFocusDiscord()
 
   -- Determine vertical step based on entry position and facing
-  local gardenFacesDown = cfg.gardenFacingDown
   if type(facingDown) == 'boolean' then
-    gardenFacesDown = facingDown
+    lastFacingDown = facingDown
   end
+  local gardenFacesDown = lastFacingDown
   local vStep
   if gardenFacesDown then
     vStep = cfg.entryAtTop and 'down' or 'up'
@@ -180,42 +182,61 @@ function runAll(facingDown)
 
   -- Left plot: start at upper-right corner, go leftwards first
   enqueueEnterGarden()
-  enqueueMove(vStep, 1)
-  enqueueMove('left', 1)
+  if gardenFacesDown then
+    enqueueMove(vStep, 1)
+    enqueueMove('left', 1)
+  else
+    enqueueMove('left', 1)
+    enqueueMove(vStep, 1)
+  end
   -- We are on upper-right corner of left plot, so first row direction is left
   enqueueTraverse10x10('left', cfg.sellEveryRows, function(resumeRow, dir)
     -- After selling, re-enter garden and navigate back to next row start
     enqueueEnterGarden()
-    enqueueMove(vStep, 1)
-    enqueueMove('left', 1)
-    -- Move down resumeRow rows already completed to the next row start
+    if gardenFacesDown then
+      enqueueMove(vStep, 1)
+      enqueueMove('left', 1)
+    else
+      enqueueMove('left', 1)
+      enqueueMove(vStep, 1)
+    end
     enqueueMove(vStep, resumeRow)
     -- We are anchored on the right edge; for next row direction:
     -- if dir == 'left', start at rightmost (already here). If dir == 'right', move to leftmost.
     if dir == 'right' then
       enqueueMove('left', 9)
     end
-  end)
+  end, vStep)
 
   -- Sell before switching plots to clear inventory
   enqueueSellAtShop()
 
   -- Right plot (re-center via garden entry)
   enqueueEnterGarden()
-  enqueueMove(vStep, 1)
-  enqueueMove('right', 1)
+  if gardenFacesDown then
+    enqueueMove(vStep, 1)
+    enqueueMove('right', 1)
+  else
+    enqueueMove('right', 1)
+    enqueueMove(vStep, 1)
+  end
   -- We are on upper-left corner of right plot, so first row direction is right
   enqueueTraverse10x10('right', cfg.sellEveryRows, function(resumeRow, dir)
     enqueueEnterGarden()
-    enqueueMove(vStep, 1)
-    enqueueMove('right', 1)
+    if gardenFacesDown then
+      enqueueMove(vStep, 1)
+      enqueueMove('right', 1)
+    else
+      enqueueMove('right', 1)
+      enqueueMove(vStep, 1)
+    end
     enqueueMove(vStep, resumeRow)
     -- We are anchored on the left edge; for next row direction:
     -- if dir == 'right', start at leftmost (already here). If dir == 'left', move to rightmost.
     if dir == 'left' then
       enqueueMove('right', 9)
     end
-  end)
+  end, vStep)
 
   -- Sell
   enqueueSellAtShop()

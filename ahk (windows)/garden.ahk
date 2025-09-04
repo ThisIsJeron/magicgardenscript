@@ -20,8 +20,8 @@ autoLoop := true
 loopDelayMs := 15000    ; 15 sec
 startHotkey := "^!g"     ; Ctrl+Alt+G
 abortHotkey := "^Esc"    ; Ctrl+Esc
-startHotkeyDown := "^!d"  ; Ctrl+Alt+D (start run for downward-facing garden)
-startHotkeyUp := "^!u"    ; Ctrl+Alt+U (start run for upward-facing garden)
+startHotkeyDown := "^d"  ; Ctrl+D (start run for downward-facing garden)
+startHotkeyUp := "^u"    ; Ctrl+U (start run for upward-facing garden)
 
 ; ---------- State ----------
 global running := false

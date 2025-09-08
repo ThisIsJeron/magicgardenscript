@@ -9,15 +9,16 @@ useArrows := true
 harvestRepeatsMin := 4
 harvestRepeatsMax := 6
 tGarden := 600           ; ms after Shift+2
-tShop := 600             ; ms after Shift+3
-tAction := 60           ; ms per Space
+tShop := 700             ; ms after Shift+3 (UI open)
+tAction := 500           ; ms per Space (throttle harvest rate)
 tMove := 80             ; ms per tile move
 jitter := 10             ; +/- ms jitter
 sellEveryRows := 2
 entryAtTop := true       ; true: Shift+2 drops at top; false: bottom
 gardenFacingDown := true ; true: garden faces down (default), false: garden faces up
 autoLoop := true
-loopDelayMs := 15000    ; 15 sec
+loopDelayMs := 0        ; immediate next run
+preSellWaitMs := 15000   ; wait before selling to allow inventory to settle
 startHotkey := "^!g"     ; Ctrl+Alt+G
 abortHotkey := "^Esc"    ; Ctrl+Esc
 startHotkeyDown := "^d"  ; Ctrl+D (start run for downward-facing garden)
@@ -148,6 +149,13 @@ SellAtShop() {
   Stroke(" ")
 }
 
+SellAtShopSettled() {
+  if (preSellWaitMs > 0) {
+    SleepCancellable(preSellWaitMs)
+  }
+  SellAtShop()
+}
+
 ; ---------- Traversal ----------
 Traverse10x10(startDir, sellEveryRows := 0, afterRowsCb := 0, vStep := "down") {
   global running
@@ -239,8 +247,8 @@ RunAll(facingDown := "") {
   Enqueue(() => Move("left", 1), 0)
   Enqueue(() => TraverseLeftPlot(vStep), 0)
 
-  ; Sell before switching plots
-  Enqueue(() => SellAtShop(), 0)
+  ; Sell before switching plots (allow inventory to settle)
+  Enqueue(() => SellAtShopSettled(), 0)
 
   ; Right plot
   Enqueue(() => EnterGarden(), 0)
@@ -248,8 +256,8 @@ RunAll(facingDown := "") {
   Enqueue(() => Move("right", 1), 0)
   Enqueue(() => TraverseRightPlot(vStep), 0)
 
-  ; Final sell
-  Enqueue(() => SellAtShop(), 0)
+  ; Final sell (allow inventory to settle)
+  Enqueue(() => SellAtShopSettled(), 0)
 
   StartQueue()
 }

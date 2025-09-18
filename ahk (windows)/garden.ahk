@@ -18,10 +18,21 @@ entryAtTop := true       ; true: Shift+2 drops at top; false: bottom
 gardenFacingDown := true ; true: garden faces down (default), false: garden faces up
 autoLoop := true
 loopDelayMs := 0        ; immediate next run
-startHotkey := "^!g"     ; Ctrl+Alt+G
+startHotkey := "^+g"     ; Ctrl+Shift+G
 abortHotkey := "^Esc"    ; Ctrl+Esc
 startHotkeyDown := "^d"  ; Ctrl+D (start run for downward-facing garden)
 startHotkeyUp := "^u"    ; Ctrl+U (start run for upward-facing garden)
+
+; Auto-detect & calibration
+autoDetectFacing := true
+pixelCoordMode := "Window"   ; "Window" or "Screen"
+colorTolerance := 60          ; color distance threshold for a match
+calibrationFile := A_ScriptDir . "\garden_cal.ini"
+calHotkeyDown := "^+j"       ; Ctrl+Shift+J (save sample for DOWN)
+calHotkeyUp := "^+k"         ; Ctrl+Shift+K (save sample for UP)
+testDetectHotkey := "^+t"    ; Ctrl+Shift+T (test detection)
+; Recheck between plots
+recheckFacingAfterLeft := true
 
 ; ---------- State ----------
 global running := false
@@ -29,6 +40,10 @@ global q := []
 global prevHwnd := 0
 global currentTimerCb := 0  ; holds the currently scheduled one-shot timer callback for cancellation
 global lastFacingDown := gardenFacingDown
+
+; Calibration state
+global calDown := Map("x", 0, "y", 0, "color", 0, "set", false)
+global calUp := Map("x", 0, "y", 0, "color", 0, "set", false)
 
 movement := useArrows
   ? Map("left","{Left}","right","{Right}","up","{Up}","down","{Down}")
@@ -38,6 +53,118 @@ movement := useArrows
 RandDelay(ms) {
   global jitter
   return ms + Random(-jitter, jitter)
+}
+
+EnsureCoordModes() {
+  global pixelCoordMode
+  CoordMode "Pixel", pixelCoordMode
+  CoordMode "Mouse", pixelCoordMode
+}
+
+GetPixelRGB(x, y) {
+  EnsureCoordModes()
+  ; Return RGB integer 0xRRGGBB
+  return PixelGetColor(x, y, "RGB")
+}
+
+RGBComponents(color) {
+  r := (color >> 16) & 0xFF
+  g := (color >> 8) & 0xFF
+  b := color & 0xFF
+  return [r, g, b]
+}
+
+ColorDistance(c1, c2) {
+  parts1 := RGBComponents(c1)
+  parts2 := RGBComponents(c2)
+  dr := Abs(parts1[1] - parts2[1])
+  dg := Abs(parts1[2] - parts2[2])
+  db := Abs(parts1[3] - parts2[3])
+  return dr + dg + db
+}
+
+SaveCalibration() {
+  global calibrationFile, calDown, calUp
+  IniWrite calDown["x"], calibrationFile, "Calibration", "DownX"
+  IniWrite calDown["y"], calibrationFile, "Calibration", "DownY"
+  IniWrite calDown["color"], calibrationFile, "Calibration", "DownColor"
+  IniWrite (calDown["set"] ? 1 : 0), calibrationFile, "Calibration", "DownSet"
+  IniWrite calUp["x"], calibrationFile, "Calibration", "UpX"
+  IniWrite calUp["y"], calibrationFile, "Calibration", "UpY"
+  IniWrite calUp["color"], calibrationFile, "Calibration", "UpColor"
+  IniWrite (calUp["set"] ? 1 : 0), calibrationFile, "Calibration", "UpSet"
+}
+
+LoadCalibration() {
+  global calibrationFile, calDown, calUp
+  downSet := IniRead(calibrationFile, "Calibration", "DownSet", "0")
+  upSet := IniRead(calibrationFile, "Calibration", "UpSet", "0")
+  calDown["x"] := Integer(IniRead(calibrationFile, "Calibration", "DownX", "0"))
+  calDown["y"] := Integer(IniRead(calibrationFile, "Calibration", "DownY", "0"))
+  calDown["color"] := Integer(IniRead(calibrationFile, "Calibration", "DownColor", "0"))
+  calDown["set"] := (downSet = "1")
+  calUp["x"] := Integer(IniRead(calibrationFile, "Calibration", "UpX", "0"))
+  calUp["y"] := Integer(IniRead(calibrationFile, "Calibration", "UpY", "0"))
+  calUp["color"] := Integer(IniRead(calibrationFile, "Calibration", "UpColor", "0"))
+  calUp["set"] := (upSet = "1")
+}
+
+CalibrateAtMouse(isDown) {
+  global calDown, calUp
+  EnsureCoordModes()
+  MouseGetPos &mx, &my
+  col := GetPixelRGB(mx, my)
+  if (isDown) {
+    calDown["x"] := mx
+    calDown["y"] := my
+    calDown["color"] := col
+    calDown["set"] := true
+    SaveCalibration()
+    TrayTip("Farm macro", "Saved DOWN calibration at (" . mx . "," . my . ")")
+  } else {
+    calUp["x"] := mx
+    calUp["y"] := my
+    calUp["color"] := col
+    calUp["set"] := true
+    SaveCalibration()
+    TrayTip("Farm macro", "Saved UP calibration at (" . mx . "," . my . ")")
+  }
+}
+
+DetectFacing() {
+  global calDown, calUp, colorTolerance, lastFacingDown
+  if !(calDown["set"] && calUp["set"]) {
+    return ""
+  }
+  colDownCur := GetPixelRGB(calDown["x"], calDown["y"])
+  colUpCur := GetPixelRGB(calUp["x"], calUp["y"])
+  dDown := ColorDistance(colDownCur, calDown["color"])
+  dUp := ColorDistance(colUpCur, calUp["color"])
+  if (dDown > 10000 || dUp > 10000) { ; guard for bogus values
+    return lastFacingDown
+  }
+  if (dDown <= colorTolerance || dUp <= colorTolerance) {
+    return dDown <= dUp
+  }
+  ; If both are over tolerance, fall back to last known
+  return lastFacingDown
+}
+
+MaybeRecheckFacingAndRestart() {
+  global autoDetectFacing, gardenFacingDown, lastFacingDown, running
+  if (!autoDetectFacing) {
+    return
+  }
+  detected := DetectFacing()
+  if (detected = "") {
+    return
+  }
+  if (detected != gardenFacingDown) {
+    ; Orientation changed mid-run: abort and immediately restart with new facing
+    running := false
+    lastFacingDown := detected
+    SetOneShotTimer(() => RunAll(detected), 0)
+  }
 }
 
 SleepCancellable(ms) {
@@ -82,7 +209,7 @@ ProcessNext() {
     running := false
     TrayTip("Farm macro", autoLoop ? "Waiting before next run..." : "Finished")
     if (autoLoop) {
-      SetOneShotTimer(() => RunAll(), loopDelayMs)
+      SetOneShotTimer(() => RunAll(lastFacingDown), loopDelayMs)
     }
     return
   }
@@ -215,17 +342,27 @@ ResumeRight(vStep, resumeRow, nextDir) {
 
 ; ---------- Run logic ----------
 RunAll(facingDown := "") {
-  global running, q, entryAtTop, gardenFacingDown, lastFacingDown
+  global running, q, entryAtTop, gardenFacingDown, lastFacingDown, autoDetectFacing
   if (running) {
     TrayTip("Farm macro", "Already running")
     return
   }
   running := true
   q := []
-  
+
+  openedForDetection := false
   ; Determine facing for this run (argument overrides current setting)
   if (IsSet(facingDown) && facingDown != "") {
     gardenFacingDown := facingDown
+  } else if (autoDetectFacing) {
+    ; Open garden and detect orientation from calibrated pixels
+    EnterGarden()
+    SleepCancellable(tGarden)
+    openedForDetection := true
+    detected := DetectFacing()
+    if (detected != "") {
+      gardenFacingDown := detected
+    }
   }
   lastFacingDown := gardenFacingDown
 
@@ -238,9 +375,14 @@ RunAll(facingDown := "") {
   ; Assuming Discord is already focused
 
   ; Left plot
-  Enqueue(() => EnterGarden(), 0)
-  Enqueue(() => MoveDyn(vStep, 1), 0)
-  Enqueue(() => Move("left", 1), 0)
+  if (openedForDetection) {
+    Enqueue(() => MoveDyn(vStep, 1), 0)
+    Enqueue(() => Move("left", 1), 0)
+  } else {
+    Enqueue(() => EnterGarden(), 0)
+    Enqueue(() => MoveDyn(vStep, 1), 0)
+    Enqueue(() => Move("left", 1), 0)
+  }
   Enqueue(() => TraverseLeftPlot(vStep), 0)
 
   ; Sell before switching plots
@@ -248,6 +390,9 @@ RunAll(facingDown := "") {
 
   ; Right plot
   Enqueue(() => EnterGarden(), 0)
+  if (recheckFacingAfterLeft) {
+    Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
+  }
   Enqueue(() => MoveDyn(vStep, 1), 0)
   Enqueue(() => Move("right", 1), 0)
   Enqueue(() => TraverseRightPlot(vStep), 0)
@@ -275,6 +420,18 @@ Hotkey(startHotkeyDown, (*) => RunAll(true))
 Hotkey(startHotkeyUp, (*) => RunAll(false))
 Hotkey(abortHotkey, AbortMacro)
 
+; Calibration & test hotkeys
+Hotkey(calHotkeyDown, (*) => CalibrateAtMouse(true))
+Hotkey(calHotkeyUp, (*) => CalibrateAtMouse(false))
+Hotkey(testDetectHotkey, (*) => (
+  result := DetectFacing(),
+  TrayTip("Farm macro", result = "" ? "Detect: need calibration (J for DOWN, K for UP)" : (result ? "Detect: DOWN" : "Detect: UP"))
+))
+
+; Load calibration at startup
+LoadCalibration()
+
 TrayTip("Farm macro", "Loaded. " . (entryAtTop ? "Entry at TOP" : "Entry at BOTTOM") . 
   ". Facing " . (gardenFacingDown ? "DOWN" : "UP") .
-  ". Hotkeys: Start(^!g), Down(^!d), Up(^!u), Abort(^Esc)")
+  ". AutoDetect:" . (autoDetectFacing ? "ON" : "OFF") .
+  ". Hotkeys: Start(^+g), Down(^d), Up(^u), Abort(^Esc), CalDown(^+j), CalUp(^+k), Test(^+t)")

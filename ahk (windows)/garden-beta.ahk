@@ -431,16 +431,30 @@ RunAll(facingDown := "") {
   } else {
     vStep := entryAtTop ? "up" : "down"
   }
+  ; Determine the safe initial step into the field from the entry anchor
+  enterStepDir := entryAtTop ? "down" : "up"
   ; Assuming Discord is already focused
 
   ; Left plot
   if (openedForDetection) {
-    Enqueue(() => MoveDyn(vStep, 1), 0)
-    Enqueue(() => Move("left", 1), 0)
+    if (gardenFacingDown) {
+      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+      Enqueue(() => Move("left", 1), 0)
+    } else {
+      ; Facing up: move horizontally first, then vertical
+      Enqueue(() => Move("left", 1), 0)
+      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+    }
   } else {
     Enqueue(() => EnterGarden(), 0)
-    Enqueue(() => MoveDyn(vStep, 1), 0)
-    Enqueue(() => Move("left", 1), 0)
+    if (gardenFacingDown) {
+      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+      Enqueue(() => Move("left", 1), 0)
+    } else {
+      ; Facing up: move horizontally first, then vertical
+      Enqueue(() => Move("left", 1), 0)
+      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+    }
   }
   Enqueue(() => TraverseLeftPlot(vStep), 0)
 
@@ -452,8 +466,14 @@ RunAll(facingDown := "") {
   if (recheckFacingAfterLeft) {
     Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
   }
-  Enqueue(() => MoveDyn(vStep, 1), 0)
-  Enqueue(() => Move("right", 1), 0)
+  if (gardenFacingDown) {
+    Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+    Enqueue(() => Move("right", 1), 0)
+  } else {
+    ; Facing up: move horizontally first, then vertical
+    Enqueue(() => Move("right", 1), 0)
+    Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+  }
   Enqueue(() => TraverseRightPlot(vStep), 0)
 
   ; Final sell

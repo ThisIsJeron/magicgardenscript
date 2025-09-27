@@ -138,23 +138,28 @@ LoadCalibration() {
 
 CalibrateAtMouse(isDown) {
   global calDown, calUp
-  EnsureCoordModes()
-  MouseGetPos &mx, &my
-  col := GetPixelRGB(mx, my)
-  if (isDown) {
-    calDown["x"] := mx
-    calDown["y"] := my
-    calDown["color"] := col
-    calDown["set"] := true
-    SaveCalibration()
-    TrayTip("Farm macro", "Saved DOWN calibration at (" . mx . "," . my . ")")
-  } else {
-    calUp["x"] := mx
-    calUp["y"] := my
-    calUp["color"] := col
-    calUp["set"] := true
-    SaveCalibration()
-    TrayTip("Farm macro", "Saved UP calibration at (" . mx . "," . my . ")")
+  Try {
+    EnsureCoordModes()
+    TrayTip("Farm macro", isDown ? "Calibrating (DOWN)..." : "Calibrating (UP)...")
+    MouseGetPos &mx, &my
+    col := GetPixelRGB(mx, my)
+    if (isDown) {
+      calDown["x"] := mx
+      calDown["y"] := my
+      calDown["color"] := col
+      calDown["set"] := true
+      SaveCalibration()
+      TrayTip("Farm macro", "Saved DOWN calibration at (" . mx . "," . my . ")")
+    } else {
+      calUp["x"] := mx
+      calUp["y"] := my
+      calUp["color"] := col
+      calUp["set"] := true
+      SaveCalibration()
+      TrayTip("Farm macro", "Saved UP calibration at (" . mx . "," . my . ")")
+    }
+  } Catch e {
+    TrayTip("Farm macro", "Calibration failed: " . (IsSet(e.Message) ? e.Message : "unknown error"))
   }
 }
 
@@ -433,6 +438,8 @@ RunAll(facingDown := "") {
   }
   ; Determine the safe initial step into the field from the entry anchor
   enterStepDir := entryAtTop ? "down" : "up"
+  ; When switching plots without re-entering, we begin from the opposite boundary -> flip
+  rightVStep := (vStep = "down") ? "up" : "down"
   ; Assuming Discord is already focused
 
   ; Left plot
@@ -463,19 +470,15 @@ RunAll(facingDown := "") {
 
   ; Right plot
   if (myGardenReturnsToLast) {
-    ; Do not re-enter; we are already at the end of the left plot.
+    ; Stay in garden, start from end of left plot. Cross into right plot and traverse upward/downward accordingly.
     if (recheckFacingAfterLeft) {
       Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
     }
-    ; Move to crossing row if needed, then cross and step into the field
-    toCrossDir := entryAtTop ? "up" : "down"
-    needsVerticalToCross := (entryAtTop && vStep = "down") || (!entryAtTop && vStep = "up")
-    if (needsVerticalToCross) {
-      Enqueue(() => MoveDyn(toCrossDir, 9), 0)
-    }
     Enqueue(() => Move("right", 1), 0)
-    Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+    ; Do NOT step enterStepDir here; we are already at a boundary row
+    Enqueue(() => TraverseRightPlot(rightVStep), 0)
   } else {
+    ; Legacy: re-enter to anchor, then step into field and cross
     Enqueue(() => EnterGarden(), 0)
     if (recheckFacingAfterLeft) {
       Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
@@ -488,8 +491,8 @@ RunAll(facingDown := "") {
       Enqueue(() => Move("right", 1), 0)
       Enqueue(() => MoveDyn(enterStepDir, 1), 0)
     }
+    Enqueue(() => TraverseRightPlot(vStep), 0)
   }
-  Enqueue(() => TraverseRightPlot(vStep), 0)
 
   ; Final sell
   Enqueue(() => SellAtShop(), 0)

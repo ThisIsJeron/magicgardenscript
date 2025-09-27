@@ -22,6 +22,7 @@ startHotkey := "^+g"     ; Ctrl+Shift+G
 abortHotkey := "^Esc"    ; Ctrl+Esc
 startHotkeyDown := "^d"  ; Ctrl+D (start run for downward-facing garden)
 startHotkeyUp := "^u"    ; Ctrl+U (start run for upward-facing garden)
+myGardenReturnsToLast := true ; true: Shift+2 returns to last garden tile (new update)
 
 ; Auto-detect & calibration
 autoDetectFacing := true
@@ -366,12 +367,16 @@ TraverseLeftPlot(vStep) {
 }
 
 ResumeLeft(vStep, resumeRow, nextDir) {
+  global myGardenReturnsToLast
   EnterGarden()
-  MoveDyn(vStep, 1)
-  Move("left", 1)
-  MoveDyn(vStep, resumeRow)
-  if (nextDir = "right") {
-    Move("left", 9)
+  if (!myGardenReturnsToLast) {
+    ; Legacy behavior: reposition from assumed entry anchor
+    MoveDyn(vStep, 1)
+    Move("left", 1)
+    MoveDyn(vStep, resumeRow)
+    if (nextDir = "right") {
+      Move("left", 9)
+    }
   }
 }
 
@@ -381,12 +386,16 @@ TraverseRightPlot(vStep) {
 }
 
 ResumeRight(vStep, resumeRow, nextDir) {
+  global myGardenReturnsToLast
   EnterGarden()
-  MoveDyn(vStep, 1)
-  Move("right", 1)
-  MoveDyn(vStep, resumeRow)
-  if (nextDir = "left") {
-    Move("right", 9)
+  if (!myGardenReturnsToLast) {
+    ; Legacy behavior: reposition from assumed entry anchor
+    MoveDyn(vStep, 1)
+    Move("right", 1)
+    MoveDyn(vStep, resumeRow)
+    if (nextDir = "left") {
+      Move("right", 9)
+    }
   }
 }
 

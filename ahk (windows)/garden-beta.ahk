@@ -401,7 +401,7 @@ ResumeRight(vStep, resumeRow, nextDir) {
 
 ; ---------- Run logic ----------
 RunAll(facingDown := "") {
-  global running, q, entryAtTop, gardenFacingDown, lastFacingDown, autoDetectFacing
+  global running, q, entryAtTop, gardenFacingDown, lastFacingDown, autoDetectFacing, myGardenReturnsToLast
   if (running) {
     TrayTip("Farm macro", "Already running")
     return
@@ -462,17 +462,32 @@ RunAll(facingDown := "") {
   Enqueue(() => SellAtShop(), 0)
 
   ; Right plot
-  Enqueue(() => EnterGarden(), 0)
-  if (recheckFacingAfterLeft) {
-    Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
-  }
-  if (gardenFacingDown) {
-    Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+  if (myGardenReturnsToLast) {
+    ; Do not re-enter; we are already at the end of the left plot.
+    if (recheckFacingAfterLeft) {
+      Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
+    }
+    ; Move to crossing row if needed, then cross and step into the field
+    toCrossDir := entryAtTop ? "up" : "down"
+    needsVerticalToCross := (entryAtTop && vStep = "down") || (!entryAtTop && vStep = "up")
+    if (needsVerticalToCross) {
+      Enqueue(() => MoveDyn(toCrossDir, 9), 0)
+    }
     Enqueue(() => Move("right", 1), 0)
+    Enqueue(() => MoveDyn(enterStepDir, 1), 0)
   } else {
-    ; Facing up: move horizontally first, then vertical
-    Enqueue(() => Move("right", 1), 0)
-    Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+    Enqueue(() => EnterGarden(), 0)
+    if (recheckFacingAfterLeft) {
+      Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
+    }
+    if (gardenFacingDown) {
+      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+      Enqueue(() => Move("right", 1), 0)
+    } else {
+      ; Facing up: move horizontally first, then vertical
+      Enqueue(() => Move("right", 1), 0)
+      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
+    }
   }
   Enqueue(() => TraverseRightPlot(vStep), 0)
 

@@ -483,23 +483,13 @@ RunAll(facingDown?) {
   ; Sell before switching plots
   Enqueue(() => SellAtShop(), 0)
 
-  ; Right plot
-  if (myGardenReturnsToLast) {
-    ; Stay in garden, start from end of left plot. Cross into right plot and traverse upward/downward accordingly.
-    if (recheckFacingAfterLeft) {
-      Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
-    }
-    EnqueueEnterRightCrossOnly()
-    ; Do NOT step enterStepDir here; we are already at a boundary row
-    Enqueue(() => TraverseRightPlot(rightVStep), 0)
-  } else {
-    ; Legacy: re-enter to anchor, then step into field and cross
-    EnqueueEnterRightReenter(enterStepDir)
-    if (recheckFacingAfterLeft) {
-      Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
-    }
-    Enqueue(() => TraverseRightPlot(vStep), 0)
+  ; Right plot: always re-enter to a known anchor, optionally recheck, then move and traverse
+  Enqueue(() => EnterGarden(), 0)
+  if (recheckFacingAfterLeft) {
+    Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
   }
+  EnqueueOrderedEntry(() => Move("right", 1), () => MoveDyn(enterStepDir, 1))
+  Enqueue(() => TraverseRightPlot(vStep), 0)
 
   ; Final sell
   Enqueue(() => SellAtShop(), 0)

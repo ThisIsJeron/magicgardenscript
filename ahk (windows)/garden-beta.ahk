@@ -243,6 +243,34 @@ Enqueue(fn, delayMs) {
   q.Push(Map("f", fn, "d", delayMs))
 }
 
+; Queue helpers for plot entry ordering
+EnqueueOrderedEntry(horizMoveFn, vertMoveFn) {
+  global gardenFacingDown
+  if (gardenFacingDown) {
+    Enqueue(vertMoveFn, 0)
+    Enqueue(horizMoveFn, 0)
+  } else {
+    Enqueue(horizMoveFn, 0)
+    Enqueue(vertMoveFn, 0)
+  }
+}
+
+EnqueueEnterLeft(openedForDetection, enterStepDir) {
+  if (!openedForDetection) {
+    Enqueue(() => EnterGarden(), 0)
+  }
+  EnqueueOrderedEntry(() => Move("left", 1), () => MoveDyn(enterStepDir, 1))
+}
+
+EnqueueEnterRightReenter(enterStepDir) {
+  Enqueue(() => EnterGarden(), 0)
+  EnqueueOrderedEntry(() => Move("right", 1), () => MoveDyn(enterStepDir, 1))
+}
+
+EnqueueEnterRightCrossOnly() {
+  Enqueue(() => Move("right", 1), 0)
+}
+
 SetOneShotTimer(cb, delayMs) {
   global currentTimerCb
   if (currentTimerCb) {
@@ -442,33 +470,14 @@ RunAll(facingDown?) {
   } else {
     vStep := entryAtTop ? "up" : "down"
   }
-  ; Determine the safe initial step into the field from the entry anchor
-  enterStepDir := entryAtTop ? "down" : "up"
+  ; Initial step into the field should follow the traversal vertical direction
+  enterStepDir := vStep
   ; When switching plots without re-entering, we begin from the opposite boundary -> flip
   rightVStep := (vStep = "down") ? "up" : "down"
   ; Assuming Discord is already focused
 
   ; Left plot
-  if (openedForDetection) {
-    if (gardenFacingDown) {
-      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
-      Enqueue(() => Move("left", 1), 0)
-    } else {
-      ; Facing up: move horizontally first, then vertical
-      Enqueue(() => Move("left", 1), 0)
-      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
-    }
-  } else {
-    Enqueue(() => EnterGarden(), 0)
-    if (gardenFacingDown) {
-      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
-      Enqueue(() => Move("left", 1), 0)
-    } else {
-      ; Facing up: move horizontally first, then vertical
-      Enqueue(() => Move("left", 1), 0)
-      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
-    }
-  }
+  EnqueueEnterLeft(openedForDetection, enterStepDir)
   Enqueue(() => TraverseLeftPlot(vStep), 0)
 
   ; Sell before switching plots
@@ -480,22 +489,14 @@ RunAll(facingDown?) {
     if (recheckFacingAfterLeft) {
       Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
     }
-    Enqueue(() => Move("right", 1), 0)
+    EnqueueEnterRightCrossOnly()
     ; Do NOT step enterStepDir here; we are already at a boundary row
     Enqueue(() => TraverseRightPlot(rightVStep), 0)
   } else {
     ; Legacy: re-enter to anchor, then step into field and cross
-    Enqueue(() => EnterGarden(), 0)
+    EnqueueEnterRightReenter(enterStepDir)
     if (recheckFacingAfterLeft) {
       Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
-    }
-    if (gardenFacingDown) {
-      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
-      Enqueue(() => Move("right", 1), 0)
-    } else {
-      ; Facing up: move horizontally first, then vertical
-      Enqueue(() => Move("right", 1), 0)
-      Enqueue(() => MoveDyn(enterStepDir, 1), 0)
     }
     Enqueue(() => TraverseRightPlot(vStep), 0)
   }

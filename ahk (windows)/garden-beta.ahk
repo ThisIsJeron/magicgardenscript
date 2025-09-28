@@ -483,8 +483,9 @@ RunAll(facingDown?) {
   ; Sell before switching plots
   Enqueue(() => SellAtShop(), 0)
 
-  ; Right plot: always re-enter to a known anchor, optionally recheck, then move and traverse
+  ; Right plot: always re-enter to a known anchor twice for reliability, then recheck, then move and traverse
   Enqueue(() => EnterGarden(), 0)
+  Enqueue(() => EnterGarden(), 50)
   if (recheckFacingAfterLeft) {
     Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
   }

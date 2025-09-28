@@ -158,8 +158,8 @@ CalibrateAtMouse(isDown) {
       SaveCalibration()
       TrayTip("Farm macro", "Saved UP calibration at (" . mx . "," . my . ")")
     }
-  } Catch e {
-    TrayTip("Farm macro", "Calibration failed: " . (IsSet(e.Message) ? e.Message : "unknown error"))
+  } Catch as e {
+    TrayTip("Farm macro", "Calibration failed: " . e.Message)
   }
 }
 
@@ -405,7 +405,7 @@ ResumeRight(vStep, resumeRow, nextDir) {
 }
 
 ; ---------- Run logic ----------
-RunAll(facingDown := "") {
+RunAll(facingDown?) {
   global running, q, entryAtTop, gardenFacingDown, lastFacingDown, autoDetectFacing, myGardenReturnsToLast
   if (running) {
     TrayTip("Farm macro", "Already running")
@@ -416,7 +416,7 @@ RunAll(facingDown := "") {
 
   openedForDetection := false
   ; Determine facing for this run (argument overrides current setting)
-  if (IsSet(facingDown) && facingDown != "") {
+  if (IsSet(facingDown)) {
     gardenFacingDown := facingDown
   } else if (autoDetectFacing) {
     ; Open garden and detect orientation from calibrated pixels

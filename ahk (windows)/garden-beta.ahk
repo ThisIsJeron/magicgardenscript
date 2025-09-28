@@ -489,8 +489,8 @@ RunAll(facingDown?) {
   if (recheckFacingAfterLeft) {
     Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
   }
-  EnqueueOrderedEntry(() => Move("right", 1), () => MoveDyn(enterStepDir, 1))
-  Enqueue(() => TraverseRightPlot(vStep), 0)
+  EnqueueOrderedEntry(() => Move("right", 1), () => MoveDyn(rightVStep, 1))
+  Enqueue(() => TraverseRightPlot(rightVStep), 0)
 
   ; Final sell
   Enqueue(() => SellAtShop(), 0)

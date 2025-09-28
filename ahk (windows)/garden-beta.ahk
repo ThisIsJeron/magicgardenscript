@@ -47,6 +47,7 @@ global q := []
 global prevHwnd := 0
 global currentTimerCb := 0  ; holds the currently scheduled one-shot timer callback for cancellation
 global lastFacingDown := gardenFacingDown
+global overrideFacingThisRun := false
 
 ; Calibration state
 global calDown := Map("x", 0, "y", 0, "color", 0, "set", false)
@@ -207,8 +208,11 @@ ShowDetectResult() {
 }
 
 MaybeRecheckFacingAndRestart() {
-  global autoDetectFacing, gardenFacingDown, lastFacingDown, running
+  global autoDetectFacing, gardenFacingDown, lastFacingDown, running, overrideFacingThisRun
   if (!autoDetectFacing) {
+    return
+  }
+  if (overrideFacingThisRun) {
     return
   }
   detected := DetectFacing()
@@ -406,7 +410,7 @@ ResumeRight(vStep, resumeRow, nextDir) {
 
 ; ---------- Run logic ----------
 RunAll(facingDown?) {
-  global running, q, entryAtTop, gardenFacingDown, lastFacingDown, autoDetectFacing, myGardenReturnsToLast
+  global running, q, entryAtTop, gardenFacingDown, lastFacingDown, autoDetectFacing, myGardenReturnsToLast, overrideFacingThisRun
   if (running) {
     TrayTip("Farm macro", "Already running")
     return
@@ -415,9 +419,11 @@ RunAll(facingDown?) {
   q := []
 
   openedForDetection := false
+  overrideFacingThisRun := false
   ; Determine facing for this run (argument overrides current setting)
   if (IsSet(facingDown)) {
     gardenFacingDown := facingDown
+    overrideFacingThisRun := true
   } else if (autoDetectFacing) {
     ; Open garden and detect orientation from calibrated pixels
     EnterGarden()

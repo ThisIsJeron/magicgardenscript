@@ -271,6 +271,18 @@ EnqueueEnterRightCrossOnly() {
   Enqueue(() => Move("right", 1), 0)
 }
 
+EnqueueAlignForRightPlot(entryAtTop, vStep) {
+  ; We want opposite vertical direction on right plot compared to left plot traversal
+  ; If left was bottom->top (vStep="up"), start at TOP on right plot
+  ; If left was top->bottom (vStep="down"), start at BOTTOM on right plot
+  desiredTop := (vStep = "up")
+  if (entryAtTop != desiredTop) {
+    dir := entryAtTop ? "down" : "up"
+    Enqueue(() => MoveDyn(dir, 9), 0)
+  }
+  Enqueue(() => Move("right", 2), 0)
+}
+
 SetOneShotTimer(cb, delayMs) {
   global currentTimerCb
   if (currentTimerCb) {
@@ -489,7 +501,7 @@ RunAll(facingDown?) {
   if (recheckFacingAfterLeft) {
     Enqueue(() => MaybeRecheckFacingAndRestart(), 0)
   }
-  EnqueueOrderedEntry(() => Move("right", 1), () => MoveDyn(rightVStep, 1))
+  EnqueueAlignForRightPlot(entryAtTop, vStep)
   Enqueue(() => TraverseRightPlot(rightVStep), 0)
 
   ; Final sell

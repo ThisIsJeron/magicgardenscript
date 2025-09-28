@@ -259,7 +259,8 @@ EnqueueEnterLeft(openedForDetection, enterStepDir) {
   if (!openedForDetection) {
     Enqueue(() => EnterGarden(), 0)
   }
-  EnqueueOrderedEntry(() => Move("left", 1), () => MoveDyn(enterStepDir, 1))
+  ; Start a new run from the right edge of the left plot: only move left twice
+  Enqueue(() => Move("left", 2), 0)
 }
 
 EnqueueEnterRightReenter(enterStepDir) {

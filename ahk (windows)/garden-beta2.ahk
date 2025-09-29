@@ -16,6 +16,7 @@ tMove := 80              ; ms per tile move
 jitter := 10             ; +/- ms jitter
 
 startHotkey := "^d"      ; Ctrl+D to start a full run
+abortHotkey := "^Esc"    ; Ctrl+Esc to stop
 
 ; ---------- State ----------
 global running := false
@@ -137,26 +138,32 @@ RunAll(*) {
   }
   running := true
 
-  ; Ensure we are at the top of the pathway via My Garden
-  EnterGarden()
+  while (running) {
+    ; Ensure we are at the top of the pathway via My Garden
+    EnterGarden()
 
-  ; Traverse left plot from top-right corner, going left first, then snake down
-  Move("left", 1)
-  Traverse10x10("left", "down")
+    ; Traverse left plot from top-right corner, going left first, then snake down
+    Move("left", 1)
+    Traverse10x10("left", "down")
 
-  ; Return to pathway top, then traverse right plot from top-left corner
-  EnterGarden()
-  Move("right", 2)
-  Traverse10x10("right", "up")
+    ; Return to pathway top, then traverse right plot from top-left corner
+    EnterGarden()
+    Move("right", 2)
+    Traverse10x10("right", "up")
 
-  ; Final sell
-  SellAtShop()
+    ; Final sell at end of both plots
+    SellAtShop()
+  }
+}
 
+AbortMacro(*) {
+  global running
   running := false
-  TrayTip("Farm macro", "Finished")
+  TrayTip("Farm macro", "Aborted")
 }
 
 ; ---------- Hotkeys ----------
 Hotkey(startHotkey, RunAll)
+Hotkey(abortHotkey, AbortMacro)
 
-TrayTip("Farm macro", "Loaded. Hotkey: Start(^d)")
+TrayTip("Farm macro", "Loaded. Hotkeys: Start(^d), Abort(^Esc)")

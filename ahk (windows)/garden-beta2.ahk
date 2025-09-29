@@ -146,8 +146,8 @@ RunAll(*) {
 
   ; Return to pathway top, then traverse right plot from top-left corner
   EnterGarden()
-  Move("right", 1)
-  Traverse10x10("right", "down")
+  Move("right", 2)
+  Traverse10x10("right", "up")
 
   ; Final sell
   SellAtShop()

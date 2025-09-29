@@ -143,8 +143,7 @@ RunAll(*) {
     EnterGarden()
 
     ; Traverse left plot from top-right corner, going left first, then snake down
-    ; Cross the 1-tile walkway robustly regardless of current side
-    Move("right", 1)
+    ; Cross the walkway from right plot and land on left plot's top-right tile
     Move("left", 2)
     Traverse10x10("left", "down")
 

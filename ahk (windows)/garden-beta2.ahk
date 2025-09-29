@@ -116,6 +116,9 @@ Traverse10x10(startDir, vStep := "down") {
         Move(dir, 1)
       }
     }
+    ; Sell after each row and return to the same tile via My Garden
+    SellAtShop()
+    EnterGarden()
     if (row < 10) {
       Move(vStep, 1)
       dir := (dir = "right") ? "left" : "right"

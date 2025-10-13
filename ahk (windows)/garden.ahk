@@ -104,20 +104,12 @@ SellAtShop() {
 
 ; Removed settled sell as tAction throttling mitigates latency sufficiently
 
-; ---------- Traversal (deterministic re-anchoring per row) ----------
+; ---------- Traversal ----------
 Traverse10x10(startDir, vStep := "down") {
   global running
-  ; Determine which way to enter the plot from the walkway each row
-  enterDir := (startDir = "left") ? "left" : "right"
+  dir := startDir
   Loop 10 {
     row := A_Index
-    if (!running) {
-      return
-    }
-    ; From walkway row position, step into the plot edge for this row
-    Move(enterDir, 1)
-
-    ; Harvest across the row in a fixed direction to avoid drift
     Loop 10 {
       col := A_Index
       if (!running) {
@@ -125,17 +117,15 @@ Traverse10x10(startDir, vStep := "down") {
       }
       HarvestTile()
       if (col < 10) {
-        Move(startDir, 1)
+        Move(dir, 1)
       }
     }
-
-    ; Sell and re-anchor back to walkway's top tile
+    ; Sell after each row and return to the same tile via My Garden
     SellAtShop()
     EnterGarden()
-
-    ; Advance along the walkway to align with the next row deterministically
     if (row < 10) {
-      Move(vStep, row) ; move down the walkway by the current row index
+      Move(vStep, 1)
+      dir := (dir = "right") ? "left" : "right"
     }
   }
 }
@@ -155,12 +145,15 @@ RunAll(*) {
     ; Ensure we are at the top of the pathway via My Garden
     EnterGarden()
 
-    ; Left plot: enter from walkway to the right edge, harvest leftwards each row
+    ; Traverse left plot from top-right corner, going left first, then snake down
+    ; Cross the walkway from right plot and land on left plot's top-right tile
+    Move("left", 2)
     Traverse10x10("left", "down")
 
-    ; Re-anchor, then Right plot: enter from walkway to the left edge, harvest rightwards
+    ; Return to pathway top, then traverse right plot from top-left corner
     EnterGarden()
-    Traverse10x10("right", "down")
+    Move("right", 2)
+    Traverse10x10("right", "up")
 
     ; Final sell at end of both plots
     SellAtShop()

@@ -146,15 +146,18 @@ RunAll(*) {
     EnterGarden()
 
     ; Traverse left plot from top-right corner, going left first, then snake down
-    ; Cross the walkway from right plot and land on left plot's top-right tile
-    Move("left", 2)
+    ; From walkway top, step 1 tile left into left plot's top-right edge
+    Move("left", 1)
     Traverse10x10("left", "down")
 
-    ; Return to pathway top, then traverse right plot from top-left corner
+    ; Move to bottom-left of right plot (cross walkway 2 tiles from left plot's bottom-right)
     EnterGarden()
     Move("right", 2)
+    ; Traverse right plot from bottom-left corner, going right first, then snake up
     Traverse10x10("right", "up")
 
+    ; Step into walkway top so My Garden re-anchors to a deterministic start next cycle
+    Move("left", 1)
     ; Final sell at end of both plots
     SellAtShop()
   }

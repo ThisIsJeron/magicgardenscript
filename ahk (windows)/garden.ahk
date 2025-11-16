@@ -62,6 +62,7 @@ Stroke(key) {
 
 Move(dir, times := 1, perMove := 0) {
   global movement, tMove, running
+  stepDelay := perMove ? perMove : tMove
   Loop times {
     if (!running) {
       return
@@ -70,7 +71,7 @@ Move(dir, times := 1, perMove := 0) {
     if (!running) {
       return
     }
-    SleepCancellable(perMove || tMove)
+    SleepCancellable(stepDelay)
   }
 }
 

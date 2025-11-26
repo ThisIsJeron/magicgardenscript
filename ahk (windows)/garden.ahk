@@ -120,11 +120,12 @@ HarvestRow(dir) {
   }
 }
 
-TraversePlot(plotSide) {
+TraversePlot(plotSide, startFromTop := true) {
   global running
   dir := (plotSide = "left") ? "left" : "right"
   enterStep := (plotSide = "left") ? "left" : "right"
   exitStep := (plotSide = "left") ? "right" : "left"
+  vertStep := startFromTop ? "down" : "up"
 
   EnterGarden()
   if (!running) {
@@ -153,7 +154,7 @@ TraversePlot(plotSide) {
       Move(exitStep, 1)
       return
     }
-    Move("down", 1)
+    Move(vertStep, 1)
     dir := (dir = "right") ? "left" : "right"
   }
 }
@@ -168,11 +169,11 @@ RunAll(*) {
   running := true
 
   while (running) {
-    TraversePlot("left")
+    TraversePlot("left", true)
     if (!running) {
       break
     }
-    TraversePlot("right")
+    TraversePlot("right", false)
   }
 }
 

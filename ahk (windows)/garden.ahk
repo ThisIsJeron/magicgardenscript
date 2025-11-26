@@ -106,32 +106,54 @@ SellAtShop() {
 ; Removed settled sell as tAction throttling mitigates latency sufficiently
 
 ; ---------- Traversal ----------
-Traverse10x10(startDir, vStep := "down") {
+HarvestRow(dir) {
   global running
-  dir := startDir
   Loop 10 {
-    row := A_Index
-    Loop 10 {
-      col := A_Index
-      if (!running) {
-        return
-      }
-      HarvestTile()
-      if (col < 10) {
-        Move(dir, 1)
-      }
+    col := A_Index
+    if (!running) {
+      return
     }
-    ; Sell after each row and return to the same tile via My Garden
-    SellAtShop()
-    EnterGarden()
-    if (row < 10) {
-      Move(vStep, 1)
-      dir := (dir = "right") ? "left" : "right"
+    HarvestTile()
+    if (col < 10) {
+      Move(dir, 1)
     }
   }
 }
 
-; Plot-specific helpers removed; we traverse directly in RunAll
+TraversePlot(plotSide) {
+  global running
+  rowDir := (plotSide = "left") ? "left" : "right"
+  enterDir := (plotSide = "left") ? "left" : "right"
+  Loop 10 {
+    row := A_Index
+    if (!running) {
+      return
+    }
+    EnterGarden()
+    if (!running) {
+      return
+    }
+    if (row > 1) {
+      Move("down", row - 1)
+    }
+    if (!running) {
+      return
+    }
+    Move(enterDir, 1)
+    if (!running) {
+      return
+    }
+    HarvestRow(rowDir)
+    if (!running) {
+      return
+    }
+    SellAtShop()
+  }
+  ; Re-anchor on walkway top for next section
+  if (running) {
+    EnterGarden()
+  }
+}
 
 ; ---------- Run logic ----------
 RunAll(*) {
@@ -143,24 +165,11 @@ RunAll(*) {
   running := true
 
   while (running) {
-    ; Ensure we are at the top of the pathway via My Garden
-    EnterGarden()
-
-    ; Traverse left plot from top-right corner, going left first, then snake down
-    ; From walkway top, step 1 tile left into left plot's top-right edge
-    Move("left", 1)
-    Traverse10x10("left", "down")
-
-    ; Move to bottom-left of right plot (cross walkway 2 tiles from left plot's bottom-right)
-    EnterGarden()
-    Move("right", 2)
-    ; Traverse right plot from bottom-left corner, going right first, then snake up
-    Traverse10x10("right", "up")
-
-    ; Step into walkway top so My Garden re-anchors to a deterministic start next cycle
-    Move("left", 1)
-    ; Final sell at end of both plots
-    SellAtShop()
+    TraversePlot("left")
+    if (!running) {
+      break
+    }
+    TraversePlot("right")
   }
 }
 

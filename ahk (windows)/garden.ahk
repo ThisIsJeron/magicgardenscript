@@ -122,36 +122,39 @@ HarvestRow(dir) {
 
 TraversePlot(plotSide) {
   global running
-  rowDir := (plotSide = "left") ? "left" : "right"
-  enterDir := (plotSide = "left") ? "left" : "right"
+  dir := (plotSide = "left") ? "left" : "right"
+  enterStep := (plotSide = "left") ? "left" : "right"
+  exitStep := (plotSide = "left") ? "right" : "left"
+
+  EnterGarden()
+  if (!running) {
+    return
+  }
+  Move(enterStep, 1)
+
   Loop 10 {
     row := A_Index
     if (!running) {
       return
     }
-    EnterGarden()
-    if (!running) {
-      return
-    }
-    if (row > 1) {
-      Move("down", row - 1)
-    }
-    if (!running) {
-      return
-    }
-    Move(enterDir, 1)
-    if (!running) {
-      return
-    }
-    HarvestRow(rowDir)
+    HarvestRow(dir)
     if (!running) {
       return
     }
     SellAtShop()
-  }
-  ; Re-anchor on walkway top for next section
-  if (running) {
+    if (!running) {
+      return
+    }
     EnterGarden()
+    if (!running) {
+      return
+    }
+    if (row = 10) {
+      Move(exitStep, 1)
+      return
+    }
+    Move("down", 1)
+    dir := (dir = "right") ? "left" : "right"
   }
 }
 

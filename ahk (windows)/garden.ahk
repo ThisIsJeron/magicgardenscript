@@ -9,11 +9,11 @@
 useArrows := true
 harvestRepeatsMin := 6
 harvestRepeatsMax := 8
-tGarden := 450           ; ms after Shift+2 (My Garden) — lowered for low ping
-tShop := 500             ; ms after Shift+3 (UI open) — lowered for low ping
-tAction := 120           ; ms per Space — faster harvest cadence
-tMove := 40              ; ms per tile move — faster traversal
-jitter := 5              ; +/- ms jitter — slightly reduced
+tGarden := 650           ; ms after Shift+2 (My Garden) — increased for lag
+tShop := 700             ; ms after Shift+3 (UI open) — increased for lag
+tAction := 200           ; ms per Space — slower harvest cadence
+tMove := 80              ; ms per tile move — slower traversal
+jitter := 10             ; +/- ms jitter — widened for variability
 
 startHotkey := "^d"      ; Ctrl+D to start a full run
 abortHotkey := "^Esc"    ; Ctrl+Esc to stop
@@ -120,21 +120,57 @@ HarvestRow(dir) {
   }
 }
 
+EnterRow(plotSide, dir) {
+  global running
+  enterStep := (plotSide = "left") ? "left" : "right"
+  Move(enterStep, 1)
+  if (!running) {
+    return
+  }
+  if (dir != enterStep) {
+    Move(enterStep, 9)
+    if (!running) {
+      return
+    }
+  }
+}
+
+ExitRow(plotSide, dir) {
+  global running
+  exitStep := (plotSide = "left") ? "right" : "left"
+  if (dir != exitStep) {
+    Move(exitStep, 9)
+    if (!running) {
+      return
+    }
+  }
+  Move(exitStep, 1)
+  if (!running) {
+    return
+  }
+}
+
 TraversePlot(plotSide, startFromTop := true) {
   global running
   dir := (plotSide = "left") ? "left" : "right"
-  enterStep := (plotSide = "left") ? "left" : "right"
-  exitStep := (plotSide = "left") ? "right" : "left"
   vertStep := startFromTop ? "down" : "up"
+  resetStep := startFromTop ? "up" : "down"
 
   EnterGarden()
   if (!running) {
     return
   }
-  Move(enterStep, 1)
+  Move(resetStep, 9) ; snap to walkway extreme
+  if (!running) {
+    return
+  }
 
   Loop 10 {
     row := A_Index
+    if (!running) {
+      return
+    }
+    EnterRow(plotSide, dir)
     if (!running) {
       return
     }
@@ -142,19 +178,18 @@ TraversePlot(plotSide, startFromTop := true) {
     if (!running) {
       return
     }
+    ExitRow(plotSide, dir)
+    if (!running) {
+      return
+    }
     SellAtShop()
     if (!running) {
       return
     }
-    EnterGarden()
-    if (!running) {
-      return
-    }
     if (row = 10) {
-      Move(exitStep, 1)
-      return
+      break
     }
-    Move(vertStep, 1)
+    Move(vertStep, 1) ; advance walkway to next row anchor
     dir := (dir = "right") ? "left" : "right"
   }
 }

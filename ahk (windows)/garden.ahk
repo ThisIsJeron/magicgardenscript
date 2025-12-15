@@ -1,4 +1,5 @@
 ; AutoHotkey v2 - Discord Garden Macro (Simplified)
+#Requires AutoHotkey v2.0
 ; 
 ; This simplified macro assumes the "My Garden" button returns you to the last
 ; location (top tile of the 1x10 pathway between two 10x10 plots). Orientation
@@ -38,8 +39,9 @@ movement := useArrows
 
 ; ---------- Utils ----------
 ; Tune send behavior for compatibility with targets that filter injected input
-SetKeyDelay(keyDelay, keyPressDuration)
-SendMode(sendModeName)
+A_SendMode := sendModeName
+A_KeyDelay := keyDelay
+A_KeyDuration := keyPressDuration
 RandDelay(ms) {
   global jitter
   return ms + Random(-jitter, jitter)

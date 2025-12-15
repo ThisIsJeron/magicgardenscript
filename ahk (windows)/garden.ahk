@@ -15,6 +15,13 @@ tAction := 200           ; ms per Space — slower harvest cadence
 tMove := 80              ; ms per tile move — slower traversal
 jitter := 10             ; +/- ms jitter — widened for variability
 
+; Input injection tuning (engine updates sometimes ignore SendInput)
+; Try: "Event" -> "InputThenPlay" -> "Play" if inputs still get ignored
+sendMode := "Event"      ; "Event" | "Input" | "Play" | "InputThenPlay"
+keyDelay := 30           ; ms between keystrokes (was -1)
+keyPressDuration := 10   ; ms key down time (was 0)
+useScanCodes := true     ; send scancodes for movement/space (more compatible for some targets)
+
 startHotkey := "^d"      ; Ctrl+D to start a full run
 abortHotkey := "^Esc"    ; Ctrl+Esc to stop
 
@@ -22,13 +29,17 @@ abortHotkey := "^Esc"    ; Ctrl+Esc to stop
 global running := false
 
 movement := useArrows
-  ? Map("left","{Left}","right","{Right}","up","{Up}","down","{Down}")
-  : Map("left","a","right","d","up","w","down","s")
+  ? (useScanCodes
+    ? Map("left","{sc14B}","right","{sc14D}","up","{sc148}","down","{sc150}")
+    : Map("left","{Left}","right","{Right}","up","{Up}","down","{Down}"))
+  : (useScanCodes
+    ? Map("left","{sc01E}","right","{sc020}","up","{sc011}","down","{sc01F}")
+    : Map("left","a","right","d","up","w","down","s"))
 
 ; ---------- Utils ----------
-; Optimize key send speed for low-latency environments
-SetKeyDelay -1, 0
-SendMode "Input"
+; Tune send behavior for compatibility with targets that filter injected input
+SetKeyDelay keyDelay, keyPressDuration
+SendMode sendMode
 RandDelay(ms) {
   global jitter
   return ms + Random(-jitter, jitter)
@@ -57,6 +68,11 @@ Press(mods, key) {
 }
 
 Stroke(key) {
+  global useScanCodes
+  if (useScanCodes && (key = " " || key = "{Space}")) {
+    Send("{sc039}")
+    return
+  }
   Send(key)
 }
 
@@ -82,7 +98,7 @@ HarvestTile() {
     if (!running) {
       return
     }
-    Stroke(" ")
+    Stroke("{Space}")
     if (!running) {
       return
     }
@@ -100,7 +116,7 @@ EnterGarden() {
 SellAtShop() {
   Press("+", "3")
   SleepCancellable(tShop)
-  Stroke(" ")
+  Stroke("{Space}")
 }
 
 ; Removed settled sell as tAction throttling mitigates latency sufficiently
@@ -222,4 +238,4 @@ AbortMacro(*) {
 Hotkey(startHotkey, RunAll)
 Hotkey(abortHotkey, AbortMacro)
 
-TrayTip("Farm macro", "Loaded. Hotkeys: Start(^d), Abort(^Esc)")
+TrayTip("Farm macro", "Loaded. Hotkeys: Start(^d), Abort(^Esc) | SendMode: " . sendMode . " | Scancodes: " . (useScanCodes ? "on" : "off"))

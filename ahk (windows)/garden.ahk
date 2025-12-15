@@ -17,7 +17,7 @@ jitter := 10             ; +/- ms jitter — widened for variability
 
 ; Input injection tuning (engine updates sometimes ignore SendInput)
 ; Try: "Event" -> "InputThenPlay" -> "Play" if inputs still get ignored
-sendMode := "Event"      ; "Event" | "Input" | "Play" | "InputThenPlay"
+sendModeName := "Event"  ; "Event" | "Input" | "Play" | "InputThenPlay"
 keyDelay := 30           ; ms between keystrokes (was -1)
 keyPressDuration := 10   ; ms key down time (was 0)
 useScanCodes := true     ; send scancodes for movement/space (more compatible for some targets)
@@ -38,8 +38,8 @@ movement := useArrows
 
 ; ---------- Utils ----------
 ; Tune send behavior for compatibility with targets that filter injected input
-SetKeyDelay keyDelay, keyPressDuration
-SendMode sendMode
+SetKeyDelay(keyDelay, keyPressDuration)
+SendMode(sendModeName)
 RandDelay(ms) {
   global jitter
   return ms + Random(-jitter, jitter)
@@ -238,4 +238,4 @@ AbortMacro(*) {
 Hotkey(startHotkey, RunAll)
 Hotkey(abortHotkey, AbortMacro)
 
-TrayTip("Farm macro", "Loaded. Hotkeys: Start(^d), Abort(^Esc) | SendMode: " . sendMode . " | Scancodes: " . (useScanCodes ? "on" : "off"))
+TrayTip("Farm macro", "Loaded. Hotkeys: Start(^d), Abort(^Esc) | SendMode: " . sendModeName . " | Scancodes: " . (useScanCodes ? "on" : "off"))

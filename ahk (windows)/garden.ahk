@@ -246,25 +246,36 @@ RunAll(*) {
   }
   running := true
 
-  EnterGarden() ; assume this returns us to top of walkway between plots
+  EnterGarden() ; start at top of walkway between plots
   if (!running) {
     return
   }
 
-  ; Left plot: top -> bottom serpentine
-  TraversePlot("left", true)
-  if (!running) {
-    return
-  }
+  while (running) {
+    ; Left plot: top -> bottom serpentine
+    TraversePlot("left", true)
+    if (!running) {
+      break
+    }
 
-  ; Step onto the walkway at bottom and let TraversePlot("right") enter the right plot
-  Move("right", 1) ; from left plot walkway edge onto the walkway
-  if (!running) {
-    return
-  }
+    ; Step onto the walkway at bottom and let TraversePlot("right") enter the right plot
+    Move("right", 1) ; from left plot walkway edge onto the walkway
+    if (!running) {
+      break
+    }
 
-  ; At bottom walkway/right plot entry, serpentine right plot bottom -> top
-  TraversePlot("right", false)
+    ; Right plot: bottom -> top serpentine
+    TraversePlot("right", false)
+    if (!running) {
+      break
+    }
+
+    ; Return to top walkway to start next cycle
+    Move("left", 10)
+    if (!running) {
+      break
+    }
+  }
 }
 
 AbortMacro(*) {

@@ -7,9 +7,12 @@
 
 ; ------------ Config ------------
 targetWin := "ahk_exe Discord.exe"  ; set "" to skip focusing
-delayBetweenTests := 2000           ; ms pause between methods
+delayBetweenTests := 15000          ; ms pause between methods
 keyDelay := 30                      ; default key delay
-keyPressDuration := 10              ; default key hold
+keyPressDuration := 20              ; default key hold (fallback)
+holdMsSpace := 160                  ; hold time for space taps
+holdMsMove := 220                   ; hold time for movement keys
+pauseBetweenStrokes := 250          ; pause after each key action
 
 ; ------------ State ------------
 global running := false
@@ -35,25 +38,28 @@ FocusDiscord() {
     WinActivate(targetWin)
 }
 
-Stroke(key) {
+PressHold(key, holdMs) {
   global useScan
   scodes := Map(
-    "space", "{sc039}",
-    "left",  "{sc14B}",
-    "right", "{sc14D}",
-    "up",    "{sc148}",
-    "down",  "{sc150}",
-    "w",     "{sc011}",
-    "a",     "{sc01E}",
-    "s",     "{sc01F}",
-    "d",     "{sc020}"
+    "space", "sc039",
+    "left",  "sc14B",
+    "right", "sc14D",
+    "up",    "sc148",
+    "down",  "sc150",
+    "w",     "sc011",
+    "a",     "sc01E",
+    "s",     "sc01F",
+    "d",     "sc020"
   )
   if (useScan && scodes.Has(key)) {
-    Send(scodes[key])
+    Send("{" . scodes[key] . " down}")
+    Sleep holdMs
+    Send("{" . scodes[key] . " up}")
   } else {
-    ; For arrow keys with virtual keys, use the brace form
-    vkKey := key ~= "^(left|right|up|down)$" ? "{" . key . "}" : key
-    Send(vkKey)
+    vkKey := key ~= "^(left|right|up|down|space)$" ? "{" . (key = "space" ? "Space" : key) . "}" : key
+    Send(vkKey . " down")
+    Sleep holdMs
+    Send(vkKey . " up")
   }
 }
 
@@ -70,22 +76,22 @@ RunOneTest(testObj) {
 
   msg := testObj.name . " | ScanCodes: " . (useScan ? "On" : "Off")
   Notify("Garden Input Test", msg)
-  Sleep 400
+  Sleep 800
 
   FocusDiscord()
 
-  ; Sequence: tap space 3x, then left/right/up/down, then WASD
+  ; Sequence: tap/hold space 3x, then arrows, then WASD (all held)
   Loop 3 {
-    Stroke("space")
-    Sleep 120
+    PressHold("space", holdMsSpace)
+    Sleep pauseBetweenStrokes
   }
   for dir in ["left","right","up","down"] {
-    Stroke(dir)
-    Sleep 120
+    PressHold(dir, holdMsMove)
+    Sleep pauseBetweenStrokes
   }
   for key in ["w","a","s","d"] {
-    Stroke(key)
-    Sleep 120
+    PressHold(key, holdMsMove)
+    Sleep pauseBetweenStrokes
   }
 }
 

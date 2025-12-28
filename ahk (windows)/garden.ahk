@@ -17,7 +17,7 @@ jitter := 10             ; +/- ms jitter — widened for variability
 holdMsSpace := 160       ; hold time for space taps
 holdMsMove := 220        ; hold time for movement keys
 pauseBetweenStrokes := 250 ; pause after each key action
-holdMsChord := 220       ; hold time for modifier chords (e.g., Shift+2)
+holdMsChord := 350       ; hold time for modifier chords (e.g., Shift+2)
 
 ; Input injection tuning (engine updates sometimes ignore SendInput)
 ; Try: "Event" -> "InputThenPlay" -> "Play" if inputs still get ignored
@@ -74,7 +74,7 @@ PressChord(mod, key, holdMs := 0) {
   Send("{" . mod . " down}")
   Sleep dur
   Send(key)
-  Sleep 50
+  Sleep dur
   Send("{" . mod . " up}")
 }
 
@@ -215,18 +215,22 @@ TraversePlot(plotSide, startFromTop := true) {
     if (!running) {
       return
     }
-    ExitRow(plotSide, dir)
+    ExitRow(plotSide, dir) ; return to walkway edge
     if (!running) {
       return
     }
-    SellAtShop()
+    SellAtShop()           ; sell from this row anchor
+    if (!running) {
+      return
+    }
+    EnterGarden()          ; teleport back to same anchor on walkway
     if (!running) {
       return
     }
     if (row = 10) {
       break
     }
-    Move(vertStep, 1) ; advance walkway to next row anchor
+    Move(vertStep, 1)      ; advance walkway to next row anchor
     dir := (dir = "right") ? "left" : "right"
   }
 }

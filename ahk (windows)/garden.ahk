@@ -257,7 +257,18 @@ RunAll(*) {
     return
   }
 
-  ; At bottom walkway, serpentine right plot bottom -> top
+  ; Cross from left plot bottom edge to right plot entry (account for walkway)
+  ; From left plot far edge: backtrack to walkway side, step through walkway, then into right plot start
+  Move("left", 9)  ; from col10 back to col1 (walkway side)
+  if (!running) {
+    return
+  }
+  Move("right", 2) ; cross walkway (1) + enter right plot (1)
+  if (!running) {
+    return
+  }
+
+  ; At bottom walkway/right plot entry, serpentine right plot bottom -> top
   TraversePlot("right", false)
 }
 

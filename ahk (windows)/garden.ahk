@@ -13,14 +13,16 @@ harvestRepeatsMax := 8
 tGarden := 650           ; ms after Shift+2 (My Garden) — increased for lag
 tShop := 700             ; ms after Shift+3 (UI open) — increased for lag
 tAction := 200           ; ms per Space — slower harvest cadence
-tMove := 80              ; ms per tile move — slower traversal
 jitter := 10             ; +/- ms jitter — widened for variability
+holdMsSpace := 160       ; hold time for space taps
+holdMsMove := 220        ; hold time for movement keys
+pauseBetweenStrokes := 250 ; pause after each key action
 
 ; Input injection tuning (engine updates sometimes ignore SendInput)
 ; Try: "Event" -> "InputThenPlay" -> "Play" if inputs still get ignored
 sendModeName := "Event"  ; "Event" | "Input" | "Play" | "InputThenPlay"
 keyDelay := 30           ; ms between keystrokes (was -1)
-keyPressDuration := 10   ; ms key down time (was 0)
+keyPressDuration := 20   ; ms key down time (was 0)
 useScanCodes := true     ; send scancodes for movement/space (more compatible for some targets)
 
 startHotkey := "^d"      ; Ctrl+D to start a full run
@@ -30,12 +32,8 @@ abortHotkey := "^Esc"    ; Ctrl+Esc to stop
 global running := false
 
 movement := useArrows
-  ? (useScanCodes
-    ? Map("left","{sc14B}","right","{sc14D}","up","{sc148}","down","{sc150}")
-    : Map("left","{Left}","right","{Right}","up","{Up}","down","{Down}"))
-  : (useScanCodes
-    ? Map("left","{sc01E}","right","{sc020}","up","{sc011}","down","{sc01F}")
-    : Map("left","a","right","d","up","w","down","s"))
+  ? Map("left","left","right","right","up","up","down","down")
+  : Map("left","a","right","d","up","w","down","s")
 
 ; ---------- Utils ----------
 ; Tune send behavior for compatibility with targets that filter injected input
@@ -69,38 +67,57 @@ Press(mods, key) {
   Send(mods . key)
 }
 
-Stroke(key) {
+PressHold(key, holdMs) {
   global useScanCodes
-  if (useScanCodes && (key = " " || key = "{Space}")) {
-    Send("{sc039}")
+  scodes := Map(
+    "space", "sc039",
+    "left",  "sc14B",
+    "right", "sc14D",
+    "up",    "sc148",
+    "down",  "sc150",
+    "w",     "sc011",
+    "a",     "sc01E",
+    "s",     "sc01F",
+    "d",     "sc020"
+  )
+  normKey := StrLower(key)
+  if (useScanCodes && scodes.Has(normKey)) {
+    Send("{" . scodes[normKey] . " down}")
+    Sleep holdMs
+    Send("{" . scodes[normKey] . " up}")
     return
   }
-  Send(key)
+  vkKey := normKey ~= "^(left|right|up|down|space)$"
+    ? "{" . (normKey = "space" ? "Space" : normKey) . "}"
+    : key
+  Send(vkKey . " down")
+  Sleep holdMs
+  Send(vkKey . " up")
 }
 
-Move(dir, times := 1, perMove := 0) {
-  global movement, tMove, running
-  stepDelay := perMove ? perMove : tMove
+Move(dir, times := 1, perMoveHold := 0) {
+  global movement, pauseBetweenStrokes, holdMsMove, running
+  hold := perMoveHold ? perMoveHold : holdMsMove
   Loop times {
     if (!running) {
       return
     }
-    Stroke(movement[dir])
+    PressHold(movement[dir], hold)
     if (!running) {
       return
     }
-    SleepCancellable(stepDelay)
+    SleepCancellable(pauseBetweenStrokes)
   }
 }
 
 HarvestTile() {
-  global harvestRepeatsMin, harvestRepeatsMax, tAction, running
+  global harvestRepeatsMin, harvestRepeatsMax, tAction, holdMsSpace, running
   reps := Random(harvestRepeatsMin, harvestRepeatsMax)
   Loop reps {
     if (!running) {
       return
     }
-    Stroke("{Space}")
+    PressHold("space", holdMsSpace)
     if (!running) {
       return
     }
@@ -118,7 +135,8 @@ EnterGarden() {
 SellAtShop() {
   Press("+", "3")
   SleepCancellable(tShop)
-  Stroke("{Space}")
+  PressHold("space", holdMsSpace)
+  SleepCancellable(pauseBetweenStrokes)
 }
 
 ; Removed settled sell as tAction throttling mitigates latency sufficiently
@@ -240,4 +258,10 @@ AbortMacro(*) {
 Hotkey(startHotkey, RunAll)
 Hotkey(abortHotkey, AbortMacro)
 
-TrayTip("Farm macro", "Loaded. Hotkeys: Start(^d), Abort(^Esc) | SendMode: " . sendModeName . " | Scancodes: " . (useScanCodes ? "on" : "off"))
+TrayTip(
+  "Farm macro",
+  "Loaded. Hotkeys: Start(^d), Abort(^Esc) | SendMode: " . sendModeName
+    . " | Scancodes: " . (useScanCodes ? "on" : "off")
+    . " | Hold(space/move): " . holdMsSpace . "/" . holdMsMove
+    . " | Pause: " . pauseBetweenStrokes
+)

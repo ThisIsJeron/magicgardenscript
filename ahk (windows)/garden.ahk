@@ -199,37 +199,35 @@ ExitRow(plotSide, dir) {
 
 TraversePlot(plotSide, startFromTop := true) {
   global running
-  moveInto := (plotSide = "left") ? "left" : "right" ; step from walkway into plot
+  moveInto := (plotSide = "left") ? "left" : "right" ; step from walkway into plot each row
   dir := moveInto                                   ; first row moves away from walkway
   vertStep := startFromTop ? "down" : "up"
-
-  ; Step into the plot for the first row (start on the inner edge)
-  Move(moveInto, 1)
-  if (!running) {
-    return
-  }
 
   Loop 10 {
     row := A_Index
     if (!running) {
       return
     }
-    HarvestRow(dir)        ; sweep across the row in current direction
+    Move(moveInto, 1)       ; enter the plot from walkway anchor
     if (!running) {
       return
     }
-    SellAtShop()           ; sell from current edge
+    HarvestRow(dir)         ; sweep across the row in current direction
     if (!running) {
       return
     }
-    EnterGarden()          ; return to same tile/edge
+    SellAtShop()            ; sell from current edge
+    if (!running) {
+      return
+    }
+    EnterGarden()           ; return to garden (assumed same anchor)
     if (!running) {
       return
     }
     if (row = 10) {
       break
     }
-    Move(vertStep, 1)      ; move one tile vertically along the current edge
+    Move(vertStep, 1)       ; move one tile along walkway to next row
     if (!running) {
       return
     }

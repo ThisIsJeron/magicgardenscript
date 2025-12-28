@@ -203,12 +203,14 @@ TraversePlot(plotSide, startFromTop := true) {
   dir := moveInto                                   ; first row moves away from walkway
   vertStep := startFromTop ? "down" : "up"
 
+  ; Enter the plot for the first row from the walkway anchor
+  Move(moveInto, 1)
+  if (!running) {
+    return
+  }
+
   Loop 10 {
     row := A_Index
-    if (!running) {
-      return
-    }
-    Move(moveInto, 1)       ; enter the plot from walkway anchor
     if (!running) {
       return
     }

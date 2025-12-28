@@ -257,13 +257,8 @@ RunAll(*) {
     return
   }
 
-  ; Cross from left plot bottom edge to right plot entry (account for walkway)
-  ; From left plot far edge: backtrack to walkway side, step through walkway, then into right plot start
-  Move("left", 9)  ; from col10 back to col1 (walkway side)
-  if (!running) {
-    return
-  }
-  Move("right", 2) ; cross walkway (1) + enter right plot (1)
+  ; Step onto the walkway at bottom and let TraversePlot("right") enter the right plot
+  Move("right", 1) ; from left plot walkway edge onto the walkway
   if (!running) {
     return
   }

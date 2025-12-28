@@ -270,8 +270,12 @@ RunAll(*) {
       break
     }
 
-    ; Return to top walkway to start next cycle
-    Move("left", 10)
+    ; Reset to top walkway between plots, ready to start left plot again
+    EnterGarden() ; back to last anchor (top of right plot edge)
+    if (!running) {
+      break
+    }
+    Move("left", 1) ; step onto the walkway; next loop will enter left plot
     if (!running) {
       break
     }

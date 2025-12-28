@@ -6,7 +6,7 @@ AutoHotkey v2 scripts to automate the two-plot garden mini-game inside Discord. 
 Copy/paste this when opening a new chat so you do not have to re-explain the setup:
 
 ```
-We have an AutoHotkey v2 macro for a Discord garden mini-game. The garden has two 10x10 plots separated by a 1x10 walkway. Starting position: top of the walkway. Traversal pattern: left plot serpentine top→bottom; each row enters from the walkway, harvests 10 tiles, sells (Shift+3), returns to garden (Shift+2), moves down 1 on the walkway, flips direction. Then the right plot serpentine bottom→top with the same per-row sell/return pattern. Inputs should be sent with held keys: SendMode=Event, scancodes on, hold space/move ~160–220ms, pause between strokes ~250ms, modifier chords (Shift+2/Shift+3) held ~350ms. Hotkeys: Ctrl+D to start, Ctrl+Esc to abort. If inputs get ignored, try SendMode InputThenPlay or Play. Focus target is Discord; no fancy orientation detection—assumes My Garden returns you to the same tile.
+We have an AutoHotkey v2 macro for a Discord garden mini-game. The garden has two 10x10 plots separated by a 1x10 walkway. Start at the top of the walkway. Traversal: left plot serpentine top→bottom; each row enters from the walkway, harvests 10 tiles, sells (Shift+3), returns to garden (Shift+2), moves down 1 on the walkway, flips direction. After the left plot finishes, step right 1 to the walkway, run the right plot bottom→top with the same per-row sell/return, then move left ~10 to the top walkway start and loop. Inputs use held keys: SendMode=Event, scancodes on, hold space/move ~160–220ms, pause between strokes ~250ms, modifier chords (Shift+2/Shift+3) held ~350ms. Hotkeys: Ctrl+D start, Ctrl+Esc abort. If inputs are ignored, try SendMode InputThenPlay or Play. Focus is Discord; assumes My Garden returns you to the same tile.
 ```
 
 ## Files
@@ -21,5 +21,5 @@ We have an AutoHotkey v2 macro for a Discord garden mini-game. The garden has tw
 1) Open Discord garden applet and focus it.  
 2) Run `garden.ahk`; press Ctrl+D to start, Ctrl+Esc to abort.  
 3) Start from the top of the walkway for correct alignment.  
-4) Adjust hold/pause timings if movement or chords miss.***
+4) Adjust hold/pause timings if movement or chords miss.
 

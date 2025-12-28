@@ -17,6 +17,7 @@ jitter := 10             ; +/- ms jitter — widened for variability
 holdMsSpace := 160       ; hold time for space taps
 holdMsMove := 220        ; hold time for movement keys
 pauseBetweenStrokes := 250 ; pause after each key action
+holdMsChord := 220       ; hold time for modifier chords (e.g., Shift+2)
 
 ; Input injection tuning (engine updates sometimes ignore SendInput)
 ; Try: "Event" -> "InputThenPlay" -> "Play" if inputs still get ignored
@@ -65,6 +66,16 @@ SleepCancellable(ms) {
 ; ---------- Send helpers ----------
 Press(mods, key) {
   Send(mods . key)
+}
+
+PressChord(mod, key, holdMs := 0) {
+  global holdMsChord
+  dur := holdMs ? holdMs : holdMsChord
+  Send("{" . mod . " down}")
+  Sleep dur
+  Send(key)
+  Sleep 50
+  Send("{" . mod . " up}")
 }
 
 PressHold(key, holdMs) {
@@ -128,12 +139,12 @@ HarvestTile() {
 ; ---------- App focus (not used; assume Discord is focused) ----------
 
 EnterGarden() {
-  Press("+", "2")
+  PressChord("Shift", "2")
   SleepCancellable(tGarden)
 }
 
 SellAtShop() {
-  Press("+", "3")
+  PressChord("Shift", "3")
   SleepCancellable(tShop)
   PressHold("space", holdMsSpace)
   SleepCancellable(pauseBetweenStrokes)
@@ -190,16 +201,6 @@ TraversePlot(plotSide, startFromTop := true) {
   global running
   dir := (plotSide = "left") ? "left" : "right"
   vertStep := startFromTop ? "down" : "up"
-  resetStep := startFromTop ? "up" : "down"
-
-  EnterGarden()
-  if (!running) {
-    return
-  }
-  Move(resetStep, 9) ; snap to walkway extreme
-  if (!running) {
-    return
-  }
 
   Loop 10 {
     row := A_Index
@@ -239,13 +240,19 @@ RunAll(*) {
   }
   running := true
 
-  while (running) {
-    TraversePlot("left", true)
-    if (!running) {
-      break
-    }
-    TraversePlot("right", false)
+  EnterGarden() ; assume this returns us to top of walkway between plots
+  if (!running) {
+    return
   }
+
+  ; Left plot: top -> bottom serpentine
+  TraversePlot("left", true)
+  if (!running) {
+    return
+  }
+
+  ; At bottom walkway, serpentine right plot bottom -> top
+  TraversePlot("right", false)
 }
 
 AbortMacro(*) {

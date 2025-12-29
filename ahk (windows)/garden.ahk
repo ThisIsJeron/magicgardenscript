@@ -26,7 +26,7 @@ keyDelay := 30           ; ms between keystrokes (was -1)
 keyPressDuration := 20   ; ms key down time (was 0)
 useScanCodes := true     ; send scancodes for movement/space (more compatible for some targets)
 
-startHotkey := "^d"      ; Ctrl+D to start a full run
+startHotkey := "+s"      ; Shift+S to start a full run
 abortHotkey := "^Esc"    ; Ctrl+Esc to stop
 
 ; ---------- State ----------
@@ -294,7 +294,7 @@ Hotkey(abortHotkey, AbortMacro)
 
 TrayTip(
   "Farm macro",
-  "Loaded. Hotkeys: Start(^d), Abort(^Esc) | SendMode: " . sendModeName
+  "Loaded. Hotkeys: Start(Shift+S), Abort(^Esc) | SendMode: " . sendModeName
     . " | Scancodes: " . (useScanCodes ? "on" : "off")
     . " | Hold(space/move): " . holdMsSpace . "/" . holdMsMove
     . " | Pause: " . pauseBetweenStrokes

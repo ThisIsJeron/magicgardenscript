@@ -123,16 +123,28 @@ Move(dir, times := 1, perMoveHold := 0) {
 }
 
 HarvestTile() {
-  global harvestHoldMs, pauseBetweenStrokes, running
+  global harvestHoldMs, harvestRepeatsMin, harvestRepeatsMax, tAction, holdMsSpace, running
   if (!running) {
     return
   }
+  ; Mutated fruit: press-and-hold to harvest
   PressHold("space", harvestHoldMs)
   if (!running) {
     return
   }
   Send("{Esc}")
-  SleepCancellable(pauseBetweenStrokes)
+  ; Non-mutated fruit: normal repeated taps
+  reps := Random(harvestRepeatsMin, harvestRepeatsMax)
+  Loop reps {
+    if (!running) {
+      return
+    }
+    PressHold("space", holdMsSpace)
+    if (!running) {
+      return
+    }
+    SleepCancellable(tAction)
+  }
 }
 
 ; ---------- App focus (not used; assume Discord is focused) ----------

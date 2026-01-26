@@ -15,6 +15,7 @@ tShop := 700             ; ms after Shift+3 (UI open) — increased for lag
 tAction := 200           ; ms per Space — slower harvest cadence
 jitter := 10             ; +/- ms jitter — widened for variability
 holdMsSpace := 160       ; hold time for space taps
+harvestHoldMs := 1000    ; exact hold time per harvest tile
 holdMsMove := 220        ; hold time for movement keys
 pauseBetweenStrokes := 250 ; pause after each key action
 holdMsChord := 350       ; hold time for modifier chords (e.g., Shift+2)
@@ -122,18 +123,16 @@ Move(dir, times := 1, perMoveHold := 0) {
 }
 
 HarvestTile() {
-  global harvestRepeatsMin, harvestRepeatsMax, tAction, holdMsSpace, running
-  reps := Random(harvestRepeatsMin, harvestRepeatsMax)
-  Loop reps {
-    if (!running) {
-      return
-    }
-    PressHold("space", holdMsSpace)
-    if (!running) {
-      return
-    }
-    SleepCancellable(tAction)
+  global harvestHoldMs, pauseBetweenStrokes, running
+  if (!running) {
+    return
   }
+  PressHold("space", harvestHoldMs)
+  if (!running) {
+    return
+  }
+  Send("{Esc}")
+  SleepCancellable(pauseBetweenStrokes)
 }
 
 ; ---------- App focus (not used; assume Discord is focused) ----------

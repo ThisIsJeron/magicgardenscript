@@ -40,7 +40,7 @@ sellPresses      := 1         ; space presses to confirm sell
 rowsPerSell      := 1
 
 ; ── Anti-detection ──
-jitter           := 30        ; ± ms random jitter on every timed sleep
+jitterMs         := 30        ; ± ms random jitter on every timed sleep
 microPauseChance := 8         ; % chance of a short idle between rows  (0-100)
 microPauseMinMs  := 400       ; micro-pause duration low bound
 microPauseMaxMs  := 1200      ; micro-pause duration high bound
@@ -86,7 +86,7 @@ scodes := Map(
 ; ════════════════════════ Utilities ════════════════════════
 
 Jitter(ms) {
-  return ms + Random(-jitter, jitter)
+  return ms + Random(-jitterMs, jitterMs)
 }
 
 SleepJ(ms) {

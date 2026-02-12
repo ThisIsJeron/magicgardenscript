@@ -1,11 +1,11 @@
-; AutoHotkey v2 - Discord Garden Macro (Optimized)
+; AutoHotkey v2 - Discord Garden Macro (Optimized + Crash Recovery)
 #Requires AutoHotkey v2.0
 ;
 ; Harvests two 10×10 plots separated by a 1×10 walkway.  Serpentine traversal
-; with configurable batch-sell: harvest N rows before visiting the shop, cutting
-; sell/return overhead by up to 80%.
+; with configurable batch-sell.  Auto-detects activity crashes via pixel check
+; and rejoins by clicking the "Join Activity" button.
 ;
-; Shift+S  → start        Shift+P  → pause / resume        Ctrl+Esc → abort
+; Shift+S → start    Shift+P → pause/resume    Shift+C → calibrate    Ctrl+Esc → abort
 
 ; ════════════════════════ Config ════════════════════════
 
@@ -45,6 +45,14 @@ microPauseChance := 8         ; % chance of a short idle between rows  (0-100)
 microPauseMinMs  := 400       ; micro-pause duration low bound
 microPauseMaxMs  := 1200      ; micro-pause duration high bound
 
+; ── Crash recovery ──
+;   Detects activity crashes via pixel color check and auto-rejoins.
+;   Run calibration (Shift+C) once to set up detection + rejoin coordinates.
+crashCheckEnabled    := true      ; master toggle for crash detection
+crashPixelTolerance  := 30        ; per-channel (R/G/B) color tolerance  (0-255)
+activityLoadDelay    := 8000      ; ms to wait after clicking "Join Activity"
+maxRecoveryRetries   := 3         ; rejoin attempts before aborting
+
 ; ── Input engine ──
 ;   Try: "Event" → "InputThenPlay" → "Play" if inputs still get ignored.
 sendModeName     := "Event"
@@ -56,6 +64,7 @@ useScanCodes     := true
 startHotkey      := "+s"      ; Shift+S
 pauseHotkey      := "+p"      ; Shift+P
 abortHotkey      := "^Esc"    ; Ctrl+Esc
+calibrateHotkey  := "+c"      ; Shift+C
 
 ; ════════════════════════ State ════════════════════════
 
@@ -63,6 +72,16 @@ global running   := false
 global paused    := false
 global cycleNum  := 0
 global totalRows := 0
+
+; Calibration state (loaded from INI or set via Shift+C)
+global calibrated      := false
+global crashPixelX     := 0      ; window-relative X of detection pixel
+global crashPixelY     := 0      ; window-relative Y of detection pixel
+global crashPixelColor := ""     ; expected color string  (e.g. "0xFF00AA")
+global rejoinHoverX    := 0      ; window-relative X — voice channel hover
+global rejoinHoverY    := 0      ; window-relative Y — voice channel hover
+global rejoinClickX    := 0      ; window-relative X — "Join Activity" button
+global rejoinClickY    := 0      ; window-relative Y — "Join Activity" button
 
 ; ════════════════════════ Init ════════════════════════
 
@@ -82,6 +101,19 @@ scodes := Map(
   "w","sc011",     "a","sc01E",
   "s","sc01F",     "d","sc020"
 )
+
+; ── Load calibration from INI ──
+iniPath := A_ScriptDir . "\garden_calibration.ini"
+if FileExist(iniPath) {
+  crashPixelX     := Integer(IniRead(iniPath, "Detection", "PixelX", "0"))
+  crashPixelY     := Integer(IniRead(iniPath, "Detection", "PixelY", "0"))
+  crashPixelColor := IniRead(iniPath, "Detection", "PixelColor", "")
+  rejoinHoverX    := Integer(IniRead(iniPath, "Rejoin", "HoverX", "0"))
+  rejoinHoverY    := Integer(IniRead(iniPath, "Rejoin", "HoverY", "0"))
+  rejoinClickX    := Integer(IniRead(iniPath, "Rejoin", "ClickX", "0"))
+  rejoinClickY    := Integer(IniRead(iniPath, "Rejoin", "ClickY", "0"))
+  calibrated := (crashPixelColor != "")
+}
 
 ; ════════════════════════ Utilities ════════════════════════
 
@@ -106,6 +138,164 @@ MaybeMicroPause() {
   global running
   if (Random(1, 100) <= microPauseChance && running)
     SleepJ(Random(microPauseMinMs, microPauseMaxMs))
+}
+
+GetDiscordHwnd() {
+  hwnd := WinExist("ahk_exe Discord.exe")
+  if !hwnd
+    hwnd := WinExist("Discord")
+  return hwnd
+}
+
+; ════════════════════════ Crash detection ════════════════════════
+
+ColorsMatch(expected, actual, tolerance) {
+  eN := Integer(expected)
+  aN := Integer(actual)
+  return (Abs(((eN >> 16) & 0xFF) - ((aN >> 16) & 0xFF)) <= tolerance)
+      && (Abs(((eN >>  8) & 0xFF) - ((aN >>  8) & 0xFF)) <= tolerance)
+      && (Abs( (eN        & 0xFF) -  (aN        & 0xFF)) <= tolerance)
+}
+
+IsGameAlive() {
+  global calibrated, crashCheckEnabled
+  global crashPixelX, crashPixelY, crashPixelColor, crashPixelTolerance
+  if !crashCheckEnabled || !calibrated
+    return true                    ; can't check — assume alive
+  hwnd := GetDiscordHwnd()
+  if !hwnd
+    return false                   ; Discord itself is gone
+  WinGetPos(&wx, &wy, , , hwnd)
+  try
+    current := PixelGetColor(wx + crashPixelX, wy + crashPixelY)
+  catch
+    return true                    ; pixel off-screen or error — assume alive
+  return ColorsMatch(crashPixelColor, current, crashPixelTolerance)
+}
+
+RecoverFromCrash() {
+  global running, activityLoadDelay, maxRecoveryRetries
+  global rejoinHoverX, rejoinHoverY, rejoinClickX, rejoinClickY
+
+  TrayTip("Farm macro", "Activity crash detected — attempting recovery")
+
+  Loop maxRecoveryRetries {
+    attempt := A_Index
+    if !running
+      return false
+
+    hwnd := GetDiscordHwnd()
+    if !hwnd {
+      TrayTip("Farm macro", "Discord not found — aborting recovery")
+      return false
+    }
+    WinGetPos(&wx, &wy, , , hwnd)
+    try WinActivate(hwnd)
+    Sleep 300
+
+    ; Hover over the voice channel to trigger the overlay
+    MouseMove(wx + rejoinHoverX, wy + rejoinHoverY)
+    Sleep 600
+
+    ; Click "Join Activity"
+    MouseMove(wx + rejoinClickX, wy + rejoinClickY)
+    Sleep 200
+    Click
+
+    ; Wait for the activity to finish loading
+    Sleep activityLoadDelay
+    if !running
+      return false
+
+    ; Verify we're back in the game
+    if IsGameAlive() {
+      TrayTip("Farm macro", "Recovery successful — resuming from walkway")
+      EnterGarden()
+      return true
+    }
+
+    TrayTip("Farm macro",
+      "Recovery attempt " . attempt . "/" . maxRecoveryRetries . " failed")
+    Sleep 2000
+  }
+
+  TrayTip("Farm macro",
+    "Recovery failed after " . maxRecoveryRetries . " attempts — aborting")
+  return false
+}
+
+; ════════════════════════ Calibration ════════════════════════
+
+CalibrateMode(*) {
+  global running, calibrated
+  global crashPixelX, crashPixelY, crashPixelColor
+  global rejoinHoverX, rejoinHoverY, rejoinClickX, rejoinClickY
+
+  if running {
+    TrayTip("Calibration", "Stop the macro first (Ctrl+Esc)")
+    return
+  }
+
+  hwnd := GetDiscordHwnd()
+  if !hwnd {
+    MsgBox("Discord window not found.", "Calibration Error")
+    return
+  }
+  WinGetPos(&wx, &wy, , , hwnd)
+
+  MsgBox(
+    "Calibration will capture 3 mouse positions.`n`n"
+    . "After clicking OK, a tooltip will tell you what to do.`n"
+    . "Position your mouse and press ENTER for each step.",
+    "Calibration")
+
+  ; ── Step 1: game pixel ──
+  ToolTip("Step 1/3: Move mouse over a GAME-ONLY pixel, then press Enter")
+  Sleep 200                        ; debounce in case OK was pressed via Enter
+  KeyWait("Enter", "D")
+  MouseGetPos(&mx, &my)
+  crashPixelX     := mx - wx
+  crashPixelY     := my - wy
+  crashPixelColor := PixelGetColor(mx, my)
+  KeyWait("Enter")                 ; wait for release
+  ToolTip()
+
+  ; ── Step 2: voice-channel hover position ──
+  ToolTip("Step 2/3: Move mouse over the voice channel, then press Enter")
+  Sleep 200
+  KeyWait("Enter", "D")
+  MouseGetPos(&mx, &my)
+  rejoinHoverX := mx - wx
+  rejoinHoverY := my - wy
+  KeyWait("Enter")
+  ToolTip()
+
+  ; ── Step 3: "Join Activity" button ──
+  ToolTip("Step 3/3: Hover channel so 'Join Activity' appears, move to the button, press Enter")
+  Sleep 200
+  KeyWait("Enter", "D")
+  MouseGetPos(&mx, &my)
+  rejoinClickX := mx - wx
+  rejoinClickY := my - wy
+  KeyWait("Enter")
+  ToolTip()
+
+  ; ── Save to INI ──
+  IniWrite(crashPixelX,     iniPath, "Detection", "PixelX")
+  IniWrite(crashPixelY,     iniPath, "Detection", "PixelY")
+  IniWrite(crashPixelColor, iniPath, "Detection", "PixelColor")
+  IniWrite(rejoinHoverX,    iniPath, "Rejoin",    "HoverX")
+  IniWrite(rejoinHoverY,    iniPath, "Rejoin",    "HoverY")
+  IniWrite(rejoinClickX,    iniPath, "Rejoin",    "ClickX")
+  IniWrite(rejoinClickY,    iniPath, "Rejoin",    "ClickY")
+
+  calibrated := true
+  MsgBox(
+    "Calibration saved to garden_calibration.ini`n`n"
+    . "Game pixel: (" . crashPixelX . ", " . crashPixelY . ") color=" . crashPixelColor . "`n"
+    . "Hover pos:  (" . rejoinHoverX . ", " . rejoinHoverY . ")`n"
+    . "Button pos: (" . rejoinClickX . ", " . rejoinClickY . ")",
+    "Calibration Complete")
 }
 
 ; ════════════════════════ Send helpers ════════════════════════
@@ -201,6 +391,8 @@ EnterGarden() {
 
 ; ════════════════════════ Traversal ════════════════════════
 
+; Returns true  = plot completed normally (or user aborted — check `running`)
+; Returns false = crash detected & recovered — caller should restart the cycle
 TraversePlot(plotSide, startFromTop := true) {
   global running, totalRows
   intoPlot      := (plotSide = "left") ? "left" : "right"
@@ -211,17 +403,25 @@ TraversePlot(plotSide, startFromTop := true) {
   ; Step from walkway into the plot for the first row
   Move(intoPlot, 1)
   if !running
-    return
+    return true
 
   Loop 10 {
     row := A_Index
     if !running
-      return
+      return true
 
     ; ── Harvest the row ──
     HarvestRow(dir)
     if !running
-      return
+      return true
+
+    ; ── Crash check (before sell to avoid typing @/# into Discord chat) ──
+    if !IsGameAlive() {
+      if RecoverFromCrash()
+        return false             ; recovered — signal RunAll to restart cycle
+      running := false           ; unrecoverable
+      return true
+    }
 
     rowsSinceSell++
     totalRows++
@@ -231,10 +431,10 @@ TraversePlot(plotSide, startFromTop := true) {
     if doSell {
       SellAtShop()
       if !running
-        return
+        return true
       EnterGarden()              ; returns to the tile we left from
       if !running
-        return
+        return true
       rowsSinceSell := 0
       ShowProgress()
     }
@@ -245,12 +445,13 @@ TraversePlot(plotSide, startFromTop := true) {
     ; ── Advance to next row ──
     Move(vertStep, 1)
     if !running
-      return
+      return true
 
     dir := (dir = "right") ? "left" : "right"
 
     MaybeMicroPause()
   }
+  return true
 }
 
 ; ════════════════════════ Progress ════════════════════════
@@ -292,7 +493,11 @@ RunAll(*) {
     ShowProgress()
 
     ; ── Left plot: top → bottom ──
-    TraversePlot("left", true)
+    if !TraversePlot("left", true) {
+      if running
+        continue                 ; crash recovered — restart cycle from walkway
+      break
+    }
     if !running
       break
 
@@ -303,7 +508,11 @@ RunAll(*) {
       break
 
     ; ── Right plot: bottom → top ──
-    TraversePlot("right", false)
+    if !TraversePlot("right", false) {
+      if running
+        continue                 ; crash recovered — restart cycle from walkway
+      break
+    }
     if !running
       break
 
@@ -338,9 +547,15 @@ TogglePause(*) {
 Hotkey(startHotkey, RunAll)
 Hotkey(abortHotkey, AbortMacro)
 Hotkey(pauseHotkey, TogglePause)
+Hotkey(calibrateHotkey, CalibrateMode)
+
+recoveryStatus := calibrated
+  ? "Crash recovery: ON"
+  : "Crash recovery: OFF (run Shift+C to calibrate)"
 
 TrayTip("Farm macro",
-  "Ready  |  Start: Shift+S   Pause: Shift+P   Abort: Ctrl+Esc"
+  "Ready  |  Start: Shift+S   Pause: Shift+P   Calibrate: Shift+C   Abort: Ctrl+Esc"
   . "`nSendMode: " . sendModeName
   . "  Scancodes: " . (useScanCodes ? "on" : "off")
-  . "  Batch: " . rowsPerSell . " rows/sell")
+  . "  Batch: " . rowsPerSell . " rows/sell"
+  . "`n" . recoveryStatus)

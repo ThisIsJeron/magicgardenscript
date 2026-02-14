@@ -179,6 +179,17 @@ RecoverFromCrash() {
 
   TrayTip("Farm macro", "Activity crash detected — attempting recovery")
 
+  ; Clean up accidental chat input first:
+  ; Esc dismisses autocomplete menus, Ctrl+A selects any typed text, Delete clears it
+  Send("{Esc}")
+  Sleep 100
+  Send("{Esc}")
+  Sleep 100
+  Send("^a")
+  Sleep 50
+  Send("{Delete}")
+  Sleep 100
+
   Loop maxRecoveryRetries {
     attempt := A_Index
     if !running
@@ -246,38 +257,38 @@ CalibrateMode(*) {
   MsgBox(
     "Calibration will capture 3 mouse positions.`n`n"
     . "After clicking OK, a tooltip will tell you what to do.`n"
-    . "Position your mouse and press ENTER for each step.",
+    . "Position your mouse and press c for each step.",
     "Calibration")
 
   ; ── Step 1: game pixel ──
-  ToolTip("Step 1/3: Move mouse over a GAME-ONLY pixel, then press Enter")
+  ToolTip("Step 1/3: Move mouse over a GAME-ONLY pixel, then press c")
   Sleep 200                        ; debounce in case OK was pressed via Enter
-  KeyWait("Enter", "D")
+  KeyWait("c", "D")
   MouseGetPos(&mx, &my)
   crashPixelX     := mx - wx
   crashPixelY     := my - wy
   crashPixelColor := PixelGetColor(mx, my)
-  KeyWait("Enter")                 ; wait for release
+  KeyWait("c")                    ; wait for release
   ToolTip()
 
   ; ── Step 2: voice-channel hover position ──
-  ToolTip("Step 2/3: Move mouse over the voice channel, then press Enter")
+  ToolTip("Step 2/3: Move mouse over the voice channel, then press c")
   Sleep 200
-  KeyWait("Enter", "D")
+  KeyWait("c", "D")
   MouseGetPos(&mx, &my)
   rejoinHoverX := mx - wx
   rejoinHoverY := my - wy
-  KeyWait("Enter")
+  KeyWait("c")
   ToolTip()
 
   ; ── Step 3: "Join Activity" button ──
-  ToolTip("Step 3/3: Hover channel so 'Join Activity' appears, move to the button, press Enter")
+  ToolTip("Step 3/3: Hover channel so 'Join Activity' appears, move to the button, press c")
   Sleep 200
-  KeyWait("Enter", "D")
+  KeyWait("c", "D")
   MouseGetPos(&mx, &my)
   rejoinClickX := mx - wx
   rejoinClickY := my - wy
-  KeyWait("Enter")
+  KeyWait("c")
   ToolTip()
 
   ; ── Save to INI ──
@@ -366,6 +377,9 @@ HarvestRow(dir) {
   global running
   Loop 10 {
     if !running
+      return
+    ; Per-tile crash check — catch a dead activity before typing into chat
+    if !IsGameAlive()
       return
     HarvestTile()
     if (A_Index < 10)

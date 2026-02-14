@@ -237,6 +237,17 @@ RecoverFromCrash() {
 
 ; ════════════════════════ Calibration ════════════════════════
 
+WaitForCalibKey(&outX, &outY) {
+  ; Poll physical key state for V. Captures mouse position on key-down,
+  ; then waits for release + debounce before the next step.
+  while !GetKeyState("v", "P")
+    Sleep 20
+  MouseGetPos(&outX, &outY)
+  while GetKeyState("v", "P")
+    Sleep 20
+  Sleep 200
+}
+
 CalibrateMode(*) {
   global running, calibrated
   global crashPixelX, crashPixelY, crashPixelColor
@@ -257,38 +268,29 @@ CalibrateMode(*) {
   MsgBox(
     "Calibration will capture 3 mouse positions.`n`n"
     . "After clicking OK, a tooltip will tell you what to do.`n"
-    . "Position your mouse and press c for each step.",
+    . "Position your mouse and press V for each step.",
     "Calibration")
 
   ; ── Step 1: game pixel ──
-  ToolTip("Step 1/3: Move mouse over a GAME-ONLY pixel, then press c")
-  Sleep 200                        ; debounce in case OK was pressed via Enter
-  KeyWait("c", "D")
-  MouseGetPos(&mx, &my)
+  ToolTip("Step 1/3: Move mouse over a GAME-ONLY pixel, then press V")
+  WaitForCalibKey(&mx, &my)
   crashPixelX     := mx - wx
   crashPixelY     := my - wy
   crashPixelColor := PixelGetColor(mx, my)
-  KeyWait("c")                    ; wait for release
   ToolTip()
 
   ; ── Step 2: voice-channel hover position ──
-  ToolTip("Step 2/3: Move mouse over the voice channel, then press c")
-  Sleep 200
-  KeyWait("c", "D")
-  MouseGetPos(&mx, &my)
+  ToolTip("Step 2/3: Move mouse over the voice channel, then press V")
+  WaitForCalibKey(&mx, &my)
   rejoinHoverX := mx - wx
   rejoinHoverY := my - wy
-  KeyWait("c")
   ToolTip()
 
   ; ── Step 3: "Join Activity" button ──
-  ToolTip("Step 3/3: Hover channel so 'Join Activity' appears, move to the button, press c")
-  Sleep 200
-  KeyWait("c", "D")
-  MouseGetPos(&mx, &my)
+  ToolTip("Step 3/3: Hover channel so 'Join Activity' appears, move to the button, press V")
+  WaitForCalibKey(&mx, &my)
   rejoinClickX := mx - wx
   rejoinClickY := my - wy
-  KeyWait("c")
   ToolTip()
 
   ; ── Save to INI ──

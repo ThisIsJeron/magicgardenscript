@@ -238,14 +238,14 @@ RecoverFromCrash() {
 ; ════════════════════════ Calibration ════════════════════════
 
 WaitForCalibKey(&outX, &outY) {
-  ; Poll physical key state for V. Captures mouse position on key-down,
-  ; then waits for release + debounce before the next step.
-  while !GetKeyState("v", "P")
-    Sleep 20
-  MouseGetPos(&outX, &outY)
-  while GetKeyState("v", "P")
-    Sleep 20
-  Sleep 200
+  ; InputHook installs its own low-level hook, so it works regardless of
+  ; hotkey registrations, focused window, or SendMode settings.
+  ih := InputHook("L0")           ; don't collect text, just watch keys
+  ih.KeyOpt("v", "E")             ; end the hook when V is pressed (key-down)
+  ih.Start()
+  ih.Wait()                        ; blocks until V key-down
+  MouseGetPos(&outX, &outY)       ; grab position at the moment of press
+  Sleep 200                        ; debounce before next step
 }
 
 CalibrateMode(*) {
